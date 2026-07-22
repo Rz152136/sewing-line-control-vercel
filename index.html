@@ -535,19 +535,36 @@ async function loadCurrentUser(){
 }
 
 async function showApp(){
-  try{
-    currentUser = await loadCurrentUser();
-  }catch(err){
+  try {
+    const { data: { session } } = await sbClient.auth.getSession();
+    
+    if (!session) {
+      showToast('Session tidak ditemukan, silakan login ulang.');
+      showLogin();
+      return;
+    }
+    
+    const headers = { 'Authorization': 'Bearer ' + session.access_token };
+    const res = await fetch(API_BASE + '/me', { headers });
+    
+    if (!res.ok) {
+      throw new Error('Gagal memuat profil user.');
+    }
+    
+    currentUser = await res.json();
+    
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('appRoot').style.display = 'block';
+    document.getElementById('userName').textContent = currentUser.fullName || currentUser.email;
+    applyRoleUI(currentUser.role);
+    
+    await init();
+    
+  } catch (err) {
     showToast('Gagal memuat profil: ' + err.message);
     await sbClient.auth.signOut();
     showLogin();
-    return;
   }
-  document.getElementById('loginScreen').style.display = 'none';
-  document.getElementById('appRoot').style.display = 'block';
-  document.getElementById('userName').textContent = currentUser.fullName || currentUser.email;
-  applyRoleUI(currentUser.role);
-  await init();
 }
 
 function showLogin(){
@@ -556,50 +573,82 @@ function showLogin(){
 }
 
 document.getElementById('loginForm').addEventListener('submit', async function(ev){
+document.getElementById('loginForm').addEventListener('submit', async function(ev){
   ev.preventDefault();
   const email = document.getElementById('loginEmail').value.trim();
   const password = document.getElementById('loginPassword').value;
   const errEl = document.getElementById('loginError');
   const btn = document.getElementById('loginBtn');
+  
   errEl.textContent = '';
   btn.disabled = true;
   btn.textContent = 'Memproses...';
   
-  // 🔥 PAKAI ENDPOINT BARU /api/login
   try {
-    const res = await fetch('/api/login', {
+    // 1. Kirim request login ke backend
+    const response = await fetch('/api/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password })
     });
     
-    const data = await res.json();
-    btn.disabled = false;
-    btn.textContent = 'Masuk';
+    const data = await response.json();
     
-    if (!res.ok) {
+    if (!response.ok) {
       errEl.textContent = data.error || 'Login gagal.';
+      btn.disabled = false;
+      btn.textContent = 'Masuk';
       return;
     }
     
-    // Simpan session ke supabase client
-    await sbClient.auth.setSession(data.session);
+    // 2. Simpan session ke Supabase client
+    if (data.session) {
+      const { error } = await sbClient.auth.setSession(data.session);
+      if (error) {
+        errEl.textContent = 'Gagal menyimpan session: ' + error.message;
+        btn.disabled = false;
+        btn.textContent = 'Masuk';
+        return;
+      }
+    }
+    
+    // 3. 🔥 LANGSUNG PANGGIL showApp() TANPA RELOAD
     await showApp();
-  } catch (error) {
+    
+    // 4. Redirect manual ke dashboard (tampilkan appRoot)
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('appRoot').style.display = 'block';
+    
+    // 5. Update UI user
+    if (currentUser) {
+      document.getElementById('userName').textContent = currentUser.fullName || currentUser.email;
+      applyRoleUI(currentUser.role);
+      await init();
+    }
+    
     btn.disabled = false;
     btn.textContent = 'Masuk';
-    errEl.textContent = 'Terjadi kesalahan: ' + error.message;
+    
+  } catch (error) {
+    errEl.textContent = 'Error: ' + error.message;
+    btn.disabled = false;
+    btn.textContent = 'Masuk';
   }
 });
-
+  
 document.getElementById('logoutBtn').addEventListener('click', async ()=>{
   await sbClient.auth.signOut();
   showLogin();
 });
 
-async function initAuth(){
-  const { data:{ session } } = await sbClient.auth.getSession();
-  if(session){ await showApp(); } else { showLogin(); }
+async function init(){
+  initLineSelects();
+  await loadEntries();
+  document.getElementById('fDate').value = todayStr();
+  document.getElementById('summaryDate').value = todayStr();
+  renderAndon();
+  renderSummary();
+  switchTab('summary');
 }
 
 // ---------- utility ----------
