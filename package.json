@@ -1,0 +1,9 @@
+{
+  "name": "sewing-line-control-vercel",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Sewing Line Control — frontend statis + Vercel Serverless Functions + Supabase",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0"
+  }
+}
