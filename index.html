@@ -6,6 +6,15 @@
 <title>Sewing Line Control — IE Dashboard</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script>
+  // ISI DUA NILAI INI setelah project Supabase Anda dibuat.
+  // Ambil dari: Supabase Dashboard -> Project Settings -> API.
+  // anon/public key AMAN untuk ditaruh di frontend (bukan rahasia) --
+  // akses sebenarnya tetap dijaga lewat pengecekan role di server (folder /api).
+  const SUPABASE_URL = 'https://xxxxxxxxxxxx.supabase.co';
+  const SUPABASE_ANON_KEY = 'isi-dengan-anon-public-key-anda';
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
 <style>
@@ -166,19 +175,60 @@
   .divider{height:1px;background:var(--line);margin:20px 0;}
 
   footer.foot{text-align:center;color:var(--muted);font-size:11.5px;padding:18px;font-family:var(--mono);}
+
+  /* ---- Login & role UI ---- */
+  #loginScreen{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:1000;padding:20px;}
+  #loginScreen .box{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:28px 24px;width:100%;max-width:340px;box-shadow:0 8px 24px rgba(0,0,0,.08);}
+  #loginScreen h2{margin:0 0 4px;font-size:19px;}
+  #loginScreen p.sub{margin:0 0 18px;color:var(--muted);font-size:13px;}
+  #loginScreen label{display:block;font-size:11.5px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;margin-bottom:5px;}
+  #loginScreen input{width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid var(--line);border-radius:8px;font-size:14px;margin-bottom:14px;}
+  #loginScreen .btn{width:100%;}
+  #loginError{color:#b4432e;font-size:12.5px;margin:-6px 0 12px;min-height:1em;}
+  .user-chip{display:flex;align-items:center;gap:8px;font-size:12.5px;}
+  .role-badge{font-family:var(--mono);font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:999px;text-transform:uppercase;letter-spacing:.03em;}
+  .role-badge.ie{background:#e7edff;color:#35507a;}
+  .role-badge.supervisor{background:#eaf3ea;color:#4b7f52;}
+  .role-badge.tamu{background:#f1efe8;color:#8a8776;}
+  #logoutBtn{background:none;border:1px solid var(--line);border-radius:8px;padding:5px 10px;font-size:12px;cursor:pointer;color:var(--muted);}
+  #logoutBtn:hover{background:var(--bg);}
+  #appRoot{display:none;}
 </style>
 </head>
 <body>
 
+<div id="loginScreen">
+  <div class="box">
+    <h2>Sewing Line Control</h2>
+    <p class="sub">Masuk untuk melanjutkan.</p>
+    <form id="loginForm">
+      <label>Email</label>
+      <input type="email" id="loginEmail" autocomplete="username" required>
+      <label>Password</label>
+      <input type="password" id="loginPassword" autocomplete="current-password" required>
+      <p id="loginError"></p>
+      <button type="submit" class="btn primary" id="loginBtn">Masuk</button>
+    </form>
+  </div>
+</div>
+
+<div id="appRoot">
 <header class="topbar">
   <div class="brand">
     <div class="mark">IE</div>
     <div>
-      <h1>Sewing Line Control Dress 2</h1>
+      <h1>Sewing Line Control</h1>
       <p>Daily Monitoring &amp; Production Visibility</p>
     </div>
   </div>
-  <div class="clock"><b id="clockTime">--:--:--</b><span id="clockDate">-</span></div>
+  <div style="display:flex;align-items:center;gap:16px;">
+    <div class="user-chip">
+      <span id="userName"></span>
+      <span class="role-badge" id="userRoleBadge"></span>
+      <button id="logoutBtn">Keluar</button>
+    </div>
+    <div class="clock"><b id="clockTime">--:--:--</b><span id="clockDate">-</span></div>
+  </div>
 </header>
 
 <div class="andon-wrap">
@@ -190,6 +240,7 @@
   <button data-tab="summary" class="active">Ringkasan Semua Line</button>
   <button data-tab="input">Input / Update Data</button>
   <button data-tab="history">Riwayat &amp; Export</button>
+  <button data-tab="admin" id="navAdmin" style="display:none;">Kelola User</button>
 </nav>
 
 <main>
@@ -383,9 +434,54 @@
     </div>
   </section>
 
+  <!-- ============ ADMIN / KELOLA USER (khusus IE) ============ -->
+  <section class="view" id="view-admin" style="display:none;">
+    <h2>Kelola User</h2>
+    <p class="sub">Buat akun baru dan atur role. Hanya bisa diakses oleh role IE.</p>
+
+    <div class="panel" style="max-width:480px;margin-bottom:20px;">
+      <h3 style="margin-top:0;">Tambah User Baru</h3>
+      <form id="adminCreateForm">
+        <div class="fld" style="margin-bottom:12px;">
+          <label>Nama Lengkap</label>
+          <input type="text" id="admFullName" required style="width:100%;box-sizing:border-box;padding:9px 11px;border:1px solid var(--line);border-radius:8px;">
+        </div>
+        <div class="fld" style="margin-bottom:12px;">
+          <label>Email</label>
+          <input type="email" id="admEmail" required style="width:100%;box-sizing:border-box;padding:9px 11px;border:1px solid var(--line);border-radius:8px;">
+        </div>
+        <div class="fld" style="margin-bottom:12px;">
+          <label>Password Awal</label>
+          <input type="text" id="admPassword" required minlength="6" placeholder="min. 6 karakter" style="width:100%;box-sizing:border-box;padding:9px 11px;border:1px solid var(--line);border-radius:8px;">
+        </div>
+        <div class="fld" style="margin-bottom:14px;">
+          <label>Role</label>
+          <select id="admRole" style="width:100%;box-sizing:border-box;padding:9px 11px;border:1px solid var(--line);border-radius:8px;">
+            <option value="supervisor">Supervisor Produksi (hanya input)</option>
+            <option value="ie">IE (superadmin)</option>
+            <option value="tamu">Tamu (lihat saja)</option>
+          </select>
+        </div>
+        <p id="adminCreateError" style="color:#b4432e;font-size:12.5px;min-height:1em;"></p>
+        <button type="submit" class="btn primary">Buat User</button>
+      </form>
+    </div>
+
+    <div class="tbl-wrap">
+      <table id="adminUserTable">
+        <thead>
+          <tr><th>Nama</th><th>Email</th><th>Role</th><th>Dibuat</th><th>Aksi</th></tr>
+        </thead>
+        <tbody id="adminUserBody"></tbody>
+      </table>
+    </div>
+  </section>
+
 </main>
 
 <footer class="foot">SEWING SECTION · INDUSTRIAL ENGINEERING · DATA TERSIMPAN OTOMATIS &amp; DIBAGIKAN KE SELURUH TIM</footer>
+
+</div> <!-- /#appRoot -->
 
 <div class="toast" id="toast"></div>
 
@@ -394,6 +490,99 @@ const LINES = ['1A','1B','2','3','4','5','8','9A','9B','11A','11B','12A','12B','
 const API_BASE = '/api';
 let ENTRIES = [];
 let chartEff, chartDefect, chartTrend, chartCumulative;
+
+// ---------- Auth & role state ----------
+const sbClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+let currentUser = null; // { id, email, fullName, role }
+
+async function authHeader(){
+  const { data:{ session } } = await sbClient.auth.getSession();
+  if(!session) return {};
+  return { 'Authorization': 'Bearer ' + session.access_token };
+}
+
+function applyRoleUI(role){
+  document.getElementById('userRoleBadge').textContent = role;
+  document.getElementById('userRoleBadge').className = 'role-badge ' + role;
+
+  const navButtons = {
+    summary: document.querySelector('button[data-tab="summary"]'),
+    input: document.querySelector('button[data-tab="input"]'),
+    history: document.querySelector('button[data-tab="history"]'),
+    admin: document.getElementById('navAdmin'),
+  };
+
+  // Supervisor: hanya input. IE: semua. Tamu: lihat saja (tanpa input/admin).
+  const visibility = {
+    supervisor: { summary:false, input:true,  history:false, admin:false },
+    ie:         { summary:true,  input:true,  history:true,  admin:true  },
+    tamu:       { summary:true,  input:false, history:false, admin:false },
+  }[role] || { summary:true, input:false, history:true, admin:false };
+
+  Object.keys(navButtons).forEach(t=>{
+    navButtons[t].style.display = visibility[t] ? '' : 'none';
+  });
+
+  const firstVisible = Object.keys(visibility).find(t=>visibility[t]);
+  switchTab(firstVisible || 'summary');
+}
+
+async function loadCurrentUser(){
+  const headers = await authHeader();
+  const res = await fetch(API_BASE + '/me', { headers });
+  if(!res.ok) throw new Error('Gagal memuat profil user.');
+  return res.json();
+}
+
+async function showApp(){
+  try{
+    currentUser = await loadCurrentUser();
+  }catch(err){
+    showToast('Gagal memuat profil: ' + err.message);
+    await sbClient.auth.signOut();
+    showLogin();
+    return;
+  }
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('appRoot').style.display = 'block';
+  document.getElementById('userName').textContent = currentUser.fullName || currentUser.email;
+  applyRoleUI(currentUser.role);
+  await init();
+}
+
+function showLogin(){
+  document.getElementById('appRoot').style.display = 'none';
+  document.getElementById('loginScreen').style.display = 'flex';
+}
+
+document.getElementById('loginForm').addEventListener('submit', async function(ev){
+  ev.preventDefault();
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  const errEl = document.getElementById('loginError');
+  const btn = document.getElementById('loginBtn');
+  errEl.textContent = '';
+  btn.disabled = true;
+  btn.textContent = 'Memproses...';
+  const { error } = await sbClient.auth.signInWithPassword({ email, password });
+  btn.disabled = false;
+  btn.textContent = 'Masuk';
+  if(error){
+    errEl.textContent = 'Login gagal: email atau password salah.';
+    return;
+  }
+  await showApp();
+});
+
+document.getElementById('logoutBtn').addEventListener('click', async ()=>{
+  await sbClient.auth.signOut();
+  showLogin();
+});
+
+async function initAuth(){
+  const { data:{ session } } = await sbClient.auth.getSession();
+  if(session){ await showApp(); } else { showLogin(); }
+}
 
 // ---------- utility ----------
 function uid(){return 'e'+Date.now().toString(36)+Math.random().toString(36).slice(2,8);}
@@ -452,12 +641,12 @@ function achievementFor(e){
 // ---------- backend API ----------
 async function loadEntries(){
   try{
-    const res = await fetch(API_BASE + '/entries');
+    const res = await fetch(API_BASE + '/entries', { headers: await authHeader() });
     if(!res.ok) throw new Error('HTTP '+res.status);
     ENTRIES = await res.json();
   }catch(err){
     ENTRIES = [];
-    showToast('Gagal memuat data dari server. Pastikan backend berjalan.');
+    showToast('Gagal memuat data dari server.');
   }
 }
 
@@ -466,7 +655,7 @@ async function loadEntries(){
 async function saveEntryToServer(entry){
   const res = await fetch(API_BASE + '/entries', {
     method: 'POST',
-    headers: {'Content-Type': 'application/json'},
+    headers: Object.assign({'Content-Type': 'application/json'}, await authHeader()),
     body: JSON.stringify(entry)
   });
   if(!res.ok){
@@ -477,7 +666,10 @@ async function saveEntryToServer(entry){
 }
 
 async function deleteEntryFromServer(id){
-  const res = await fetch(API_BASE + '/entries/' + encodeURIComponent(id), { method: 'DELETE' });
+  const res = await fetch(API_BASE + '/entries/' + encodeURIComponent(id), {
+    method: 'DELETE',
+    headers: await authHeader()
+  });
   if(!res.ok){
     const body = await res.json().catch(()=>({}));
     throw new Error(body.error || ('HTTP '+res.status));
@@ -524,11 +716,12 @@ function renderAndon(){
 // ---------- Tabs ----------
 function switchTab(tab){
   document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.toggle('active', b.dataset.tab===tab));
-  ['summary','input','history'].forEach(t=>{
+  ['summary','input','history','admin'].forEach(t=>{
     document.getElementById('view-'+t).style.display = (t===tab)?'block':'none';
   });
   if(tab==='summary') renderSummary();
   if(tab==='history') renderHistory();
+  if(tab==='admin') loadAndRenderAdminUsers();
 }
 document.getElementById('tabs').addEventListener('click', e=>{
   if(e.target.tagName==='BUTTON') switchTab(e.target.dataset.tab);
@@ -754,8 +947,10 @@ function renderHistory(){
       <td class="num">${fmtNum(e.defectQty,0)}</td>
       <td>${e.notes||'-'}</td>
       <td><div class="row-actions">
+        ${currentUser && currentUser.role==='ie' ? `
         <button class="btn ghost sm" onclick="editEntry('${e.id}')">Edit</button>
         <button class="btn danger sm" onclick="deleteEntry('${e.id}')">Hapus</button>
+        ` : '-'}
       </div></td>
     `;
     body.appendChild(tr);
@@ -980,6 +1175,112 @@ document.getElementById('btnExport').addEventListener('click', ()=>{
   showToast('File '+fname+' berhasil diexport.');
 });
 
+// ---------- Admin: Kelola User (khusus IE) ----------
+async function loadAndRenderAdminUsers(){
+  const body = document.getElementById('adminUserBody');
+  body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted);">Memuat...</td></tr>';
+  try{
+    const res = await fetch(API_BASE + '/admin/users', { headers: await authHeader() });
+    if(!res.ok){
+      const err = await res.json().catch(()=>({}));
+      throw new Error(err.error || ('HTTP '+res.status));
+    }
+    const users = await res.json();
+    renderAdminUsers(users);
+  }catch(err){
+    body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#b4432e;">Gagal memuat: '+err.message+'</td></tr>';
+  }
+}
+
+function renderAdminUsers(users){
+  const body = document.getElementById('adminUserBody');
+  body.innerHTML = '';
+  if(!users.length){
+    body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted);">Belum ada user.</td></tr>';
+    return;
+  }
+  const roleLabel = { supervisor:'Supervisor Produksi', ie:'IE (superadmin)', tamu:'Tamu' };
+  users.forEach(u=>{
+    const tr = document.createElement('tr');
+    const created = u.created_at ? new Date(u.created_at).toLocaleDateString('id-ID') : '-';
+    tr.innerHTML = `
+      <td>${u.full_name || '-'}</td>
+      <td>${u.email}</td>
+      <td>
+        <select data-id="${u.id}" class="admRoleSelect" ${u.id===currentUser.id?'disabled title="Tidak bisa ubah role akun sendiri"':''}>
+          <option value="supervisor" ${u.role==='supervisor'?'selected':''}>${roleLabel.supervisor}</option>
+          <option value="ie" ${u.role==='ie'?'selected':''}>${roleLabel.ie}</option>
+          <option value="tamu" ${u.role==='tamu'?'selected':''}>${roleLabel.tamu}</option>
+        </select>
+      </td>
+      <td>${created}</td>
+      <td>${u.id===currentUser.id ? '-' : `<button class="btn danger sm" onclick="adminDeleteUser('${u.id}')">Hapus</button>`}</td>
+    `;
+    body.appendChild(tr);
+  });
+
+  document.querySelectorAll('.admRoleSelect').forEach(sel=>{
+    sel.addEventListener('change', async ()=>{
+      const id = sel.dataset.id;
+      const role = sel.value;
+      try{
+        const res = await fetch(API_BASE + '/admin/users', {
+          method: 'PATCH',
+          headers: Object.assign({'Content-Type':'application/json'}, await authHeader()),
+          body: JSON.stringify({ id, role })
+        });
+        if(!res.ok){ const err = await res.json().catch(()=>({})); throw new Error(err.error || ('HTTP '+res.status)); }
+        showToast('Role user diperbarui.');
+      }catch(err){
+        showToast('Gagal update role: '+err.message);
+        loadAndRenderAdminUsers();
+      }
+    });
+  });
+}
+
+window.adminDeleteUser = async function(id){
+  if(!confirm('Hapus user ini? Akun login-nya akan dinonaktifkan permanen.')) return;
+  try{
+    const res = await fetch(API_BASE + '/admin/users?id=' + encodeURIComponent(id), {
+      method: 'DELETE',
+      headers: await authHeader()
+    });
+    if(!res.ok){ const err = await res.json().catch(()=>({})); throw new Error(err.error || ('HTTP '+res.status)); }
+    showToast('User dihapus.');
+    loadAndRenderAdminUsers();
+  }catch(err){
+    showToast('Gagal menghapus user: '+err.message);
+  }
+};
+
+document.getElementById('adminCreateForm').addEventListener('submit', async function(ev){
+  ev.preventDefault();
+  const fullName = document.getElementById('admFullName').value.trim();
+  const email = document.getElementById('admEmail').value.trim();
+  const password = document.getElementById('admPassword').value;
+  const role = document.getElementById('admRole').value;
+  const errEl = document.getElementById('adminCreateError');
+  errEl.textContent = '';
+
+  try{
+    const res = await fetch(API_BASE + '/admin/users', {
+      method: 'POST',
+      headers: Object.assign({'Content-Type':'application/json'}, await authHeader()),
+      body: JSON.stringify({ email, password, fullName, role })
+    });
+    if(!res.ok){
+      const err = await res.json().catch(()=>({}));
+      throw new Error(err.error || ('HTTP '+res.status));
+    }
+    showToast('User '+email+' berhasil dibuat.');
+    document.getElementById('adminCreateForm').reset();
+    loadAndRenderAdminUsers();
+  }catch(err){
+    errEl.textContent = 'Gagal membuat user: ' + err.message;
+  }
+});
+
 // ---------- Init ----------
 async function init(){
   initLineSelects();
@@ -989,7 +1290,7 @@ async function init(){
   renderAndon();
   renderSummary();
 }
-init();
+initAuth();
 </script>
 </body>
 </html>
