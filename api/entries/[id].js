@@ -1,6 +1,14 @@
 const { getSupabase } = require('../../lib/entries');
+const { requireUser, requireRole } = require('../../lib/auth');
 
 module.exports = async (req, res) => {
+  let user;
+  try {
+    user = await requireUser(req);
+  } catch (err) {
+    return res.status(err.status || 401).json({ error: err.message });
+  }
+
   let supabase;
   try {
     supabase = getSupabase();
@@ -11,6 +19,13 @@ module.exports = async (req, res) => {
   const { id } = req.query;
 
   if (req.method === 'DELETE') {
+    // Hanya IE (superadmin) yang boleh menghapus data.
+    try {
+      requireRole(user, ['ie']);
+    } catch (err) {
+      return res.status(err.status).json({ error: err.message });
+    }
+
     const { data, error } = await supabase
       .from('entries')
       .delete()
