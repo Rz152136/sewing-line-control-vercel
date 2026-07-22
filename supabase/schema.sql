@@ -32,3 +32,44 @@ create index if not exists entries_date_idx on entries (date);
 -- SERVICE ROLE KEY, yang otomatis melewati RLS. Anon key (kalau ada yang
 -- mencoba akses langsung dari browser) tidak akan bisa membaca/menulis apa pun.
 alter table entries enable row level security;
+
+-- ============================================================
+-- User roles: supervisor (hanya input), ie (superadmin), tamu (lihat saja)
+-- ============================================================
+
+create type user_role as enum ('supervisor', 'ie', 'tamu');
+
+create table if not exists profiles (
+  id uuid primary key references auth.users(id) on delete cascade,
+  email text,
+  full_name text default '',
+  role user_role not null default 'tamu',
+  created_at timestamptz default now()
+);
+
+alter table profiles enable row level security;
+
+-- User boleh membaca profil dirinya sendiri (dipakai frontend kalau perlu).
+-- Tidak ada policy insert/update/delete publik — pembuatan user baru dan
+-- perubahan role hanya lewat endpoint /api/admin/users (khusus role IE),
+-- yang memakai service_role key dan otomatis melewati RLS.
+create policy "Users can read own profile" on profiles
+  for select using (auth.uid() = id);
+
+-- ============================================================
+-- LANGKAH WAJIB SETELAH MENJALANKAN SCRIPT INI:
+-- Buat akun IE (superadmin) PERTAMA secara manual, karena belum ada
+-- siapa pun yang bisa membuat user lewat aplikasi:
+--
+-- 1. Authentication -> Users -> Add User -> isi email & password ->
+--    centang "Auto Confirm User" -> Create user.
+-- 2. Salin User UID yang baru dibuat.
+-- 3. Table Editor -> profiles -> Insert row:
+--      id        = User UID dari langkah 2
+--      email     = email yang sama
+--      full_name = nama Anda
+--      role      = ie
+--
+-- Setelah itu, akun IE ini bisa login ke aplikasi dan membuat user
+-- supervisor/tamu lainnya lewat tab "Kelola User".
+-- ============================================================
