@@ -49,6 +49,7 @@ module.exports = async (req, res) => {
       mp: Number(b.mp) || 0,
       wh: Number(b.wh) || 0,
       target_output: Number(b.targetOutput) || 0,
+      mesin: Number(b.mesin) || 0,
       notes: String(b.notes || '').trim(),
       updated_by: user.id,
       updated_at: new Date().toISOString(),
