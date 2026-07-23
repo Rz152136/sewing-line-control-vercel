@@ -351,7 +351,9 @@ async function buildDashboardHtml(date){
   });
   qtyLogs.forEach(q=>{
     if(!perLine[q.line]) perLine[q.line] = { line:q.line, target:0, output:0, present:0, absent:0, hasConfig:false };
-    perLine[q.line].output += Number(q.qty)||0;
+    // qty kini bersifat kumulatif per slot, jadi output harian = nilai kumulatif TERTINGGI, bukan hasil jumlah semua slot.
+    const cum = Number(q.qty)||0;
+    if(cum > perLine[q.line].output) perLine[q.line].output = cum;
   });
   attendances.forEach(a=>{
     if(!perLine[a.line]) perLine[a.line] = { line:a.line, target:0, output:0, present:0, absent:0, hasConfig:false };
@@ -454,7 +456,8 @@ async function renderSupervisorView(){
       <h2>Line ${line}</h2>
       <p class="sub">${fmtDate(date)}</p>
 
-      <h3>Input Qty Produksi (per 3 jam)</h3>
+      <h3>Input Qty Produksi (kumulatif per 3 jam)</h3>
+      <p class="sub" style="margin:-6px 0 12px;">Isi <b>total produksi kumulatif</b> sejak awal hari sampai jam slot ini — bukan hasil 3 jam terakhir saja. Contoh: jam 08:00-11:00 = 250, jam 11:00-14:00 = 500 (artinya slot ini menghasilkan 250 pcs).</p>
       <form id="qtyForm">
         <div class="field-row">
           <div class="field">
@@ -462,16 +465,17 @@ async function renderSupervisorView(){
             <select id="qtySlot">${SLOTS.map(s=>`<option value="${s}">${s}</option>`).join('')}</select>
           </div>
           <div class="field">
-            <label>Qty (pcs)</label>
+            <label>Qty Kumulatif (pcs)</label>
             <input type="number" id="qtyValue" min="0" required>
           </div>
         </div>
+        <p id="qtyHint" class="sub" style="margin:-6px 0 12px;"></p>
         <button type="submit" class="btn primary">Simpan Qty</button>
       </form>
       <div class="tbl-wrap" style="margin-top:14px;">
         <table>
-          <thead><tr><th>Slot Jam</th><th>Qty</th><th>Update Terakhir</th></tr></thead>
-          <tbody id="qtyLogBody"><tr><td colspan="3" style="text-align:center;color:var(--muted);">Memuat...</td></tr></tbody>
+          <thead><tr><th>Slot Jam</th><th>Qty Kumulatif</th><th>Produksi Slot</th><th>Update Terakhir</th></tr></thead>
+          <tbody id="qtyLogBody"><tr><td colspan="4" style="text-align:center;color:var(--muted);">Memuat...</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -494,20 +498,39 @@ async function renderSupervisorView(){
     </div>
   `;
 
+  let qtyCache = [];
+  function updateQtyHint(){
+    const slotIdx = SLOTS.indexOf(document.getElementById('qtySlot').value);
+    let prevCum = 0, prevSlot = null;
+    for(let i=slotIdx-1;i>=0;i--){
+      const found = qtyCache.find(l=>l.slot===SLOTS[i]);
+      if(found){ prevCum = Number(found.qty)||0; prevSlot = SLOTS[i]; break; }
+    }
+    document.getElementById('qtyHint').textContent = prevSlot
+      ? `Kumulatif terakhir (${prevSlot}): ${fmtNum(prevCum)} pcs — isi total sampai slot ini, bukan hanya tambahannya.`
+      : 'Belum ada input sebelumnya hari ini — isi total produksi sejak awal shift sampai slot ini.';
+  }
+
   async function refreshQtyTable(){
     const body = document.getElementById('qtyLogBody');
     try{
       const logs = await apiGet('/qty-logs?line='+encodeURIComponent(line)+'&date='+date);
+      qtyCache = logs;
+      updateQtyHint();
       if(!logs.length){
-        body.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--muted);">Belum ada input hari ini.</td></tr>';
+        body.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--muted);">Belum ada input hari ini.</td></tr>';
         return;
       }
-      body.innerHTML = logs
-        .sort((a,b)=>a.slot.localeCompare(b.slot))
-        .map(l=>`<tr><td>${l.slot}</td><td class="num">${fmtNum(l.qty)}</td><td>${new Date(l.updated_at).toLocaleTimeString('id-ID')}</td></tr>`)
-        .join('');
+      const sorted = logs.slice().sort((a,b)=>SLOTS.indexOf(a.slot)-SLOTS.indexOf(b.slot));
+      let prev = 0;
+      body.innerHTML = sorted.map(l=>{
+        const cum = Number(l.qty)||0;
+        const inc = cum - prev;
+        prev = cum;
+        return `<tr><td>${l.slot}</td><td class="num">${fmtNum(cum)}</td><td class="num">${fmtNum(inc)}</td><td>${new Date(l.updated_at).toLocaleTimeString('id-ID')}</td></tr>`;
+      }).join('');
     }catch(err){
-      body.innerHTML = '<tr><td colspan="3" style="color:#c0392b;">Gagal memuat: '+err.message+'</td></tr>';
+      body.innerHTML = '<tr><td colspan="4" style="color:#c0392b;">Gagal memuat: '+err.message+'</td></tr>';
     }
   }
 
@@ -521,13 +544,15 @@ async function renderSupervisorView(){
     }catch(err){ /* diamkan, form tetap kosong */ }
   }
 
+  document.getElementById('qtySlot').addEventListener('change', updateQtyHint);
+
   document.getElementById('qtyForm').addEventListener('submit', async (ev)=>{
     ev.preventDefault();
     const slot = document.getElementById('qtySlot').value;
     const qty = document.getElementById('qtyValue').value;
     try{
       await apiPost('/qty-logs', { line, date, slot, qty });
-      showToast('Qty slot '+slot+' tersimpan.');
+      showToast('Qty kumulatif slot '+slot+' tersimpan.');
       document.getElementById('qtyValue').value = '';
       refreshQtyTable();
     }catch(err){ showToast('Gagal simpan: '+err.message); }
@@ -714,9 +739,9 @@ async function renderIeData(){
       <button class="btn ghost sm" id="dataFilterBtn">Terapkan Filter</button>
       <button class="btn ghost sm" id="dataExportBtn">Export Excel</button>
 
-      <h3 style="margin-top:20px;">Qty per Slot</h3>
+      <h3 style="margin-top:20px;">Qty per Slot (kumulatif)</h3>
       <div class="tbl-wrap">
-        <table><thead><tr><th>Line</th><th>Tanggal</th><th>Slot</th><th>Qty</th></tr></thead>
+        <table><thead><tr><th>Line</th><th>Tanggal</th><th>Slot</th><th>Qty Kumulatif</th><th>Produksi Slot</th></tr></thead>
         <tbody id="dataQtyBody"></tbody></table>
       </div>
 
@@ -737,16 +762,30 @@ async function renderIeData(){
     let aPath = '/attendance?date=' + date;
     if(line){ qPath += '&line='+encodeURIComponent(line); aPath += '&line='+encodeURIComponent(line); }
 
-    document.getElementById('dataQtyBody').innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--muted);">Memuat...</td></tr>';
+    document.getElementById('dataQtyBody').innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted);">Memuat...</td></tr>';
     document.getElementById('dataAttBody').innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--muted);">Memuat...</td></tr>';
 
     try{
       const [qty, att] = await Promise.all([apiGet(qPath), apiGet(aPath)]);
       lastQty = qty; lastAtt = att;
-      document.getElementById('dataQtyBody').innerHTML = qty.length
-        ? qty.sort((a,b)=>a.line.localeCompare(b.line)||a.slot.localeCompare(b.slot))
-             .map(q=>`<tr><td>${q.line}</td><td>${fmtDate(q.date)}</td><td>${q.slot}</td><td class="num">${fmtNum(q.qty)}</td></tr>`).join('')
-        : '<tr><td colspan="4" style="text-align:center;color:var(--muted);">Tidak ada data.</td></tr>';
+      if(qty.length){
+        const byLine = {};
+        qty.forEach(q=>{ (byLine[q.line]=byLine[q.line]||[]).push(q); });
+        const rowsHtml = [];
+        Object.keys(byLine).sort().forEach(ln=>{
+          const sorted = byLine[ln].slice().sort((a,b)=>SLOTS.indexOf(a.slot)-SLOTS.indexOf(b.slot));
+          let prev = 0;
+          sorted.forEach(q=>{
+            const cum = Number(q.qty)||0;
+            const inc = cum - prev;
+            prev = cum;
+            rowsHtml.push(`<tr><td>${q.line}</td><td>${fmtDate(q.date)}</td><td>${q.slot}</td><td class="num">${fmtNum(cum)}</td><td class="num">${fmtNum(inc)}</td></tr>`);
+          });
+        });
+        document.getElementById('dataQtyBody').innerHTML = rowsHtml.join('');
+      } else {
+        document.getElementById('dataQtyBody').innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted);">Tidak ada data.</td></tr>';
+      }
       document.getElementById('dataAttBody').innerHTML = att.length
         ? att.sort((a,b)=>a.line.localeCompare(b.line))
              .map(a=>`<tr><td>${a.line}</td><td>${fmtDate(a.date)}</td><td class="num">${fmtNum(a.present_count)}</td><td class="num">${fmtNum(a.absent_count)}</td></tr>`).join('')
