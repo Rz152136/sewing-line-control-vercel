@@ -50,6 +50,7 @@ module.exports = async (req, res) => {
       wh: Number(b.wh) || 0,
       target_output: Number(b.targetOutput) || 0,
       mesin: Number(b.mesin) || 0,
+      mc_shift: Number(b.mcShift) || 0,
       notes: String(b.notes || '').trim(),
       updated_by: user.id,
       updated_at: new Date().toISOString(),
