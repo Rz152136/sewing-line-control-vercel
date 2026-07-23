@@ -341,33 +341,38 @@ async function buildDashboardHtml(date){
   ]);
 
   const perLine = {};
-  LINES.forEach(l => perLine[l] = { line:l, target:0, output:0, present:0, absent:0, hasConfig:false });
+  LINES.forEach(l => perLine[l] = { line:l, target:0, output:0, present:0, absent:0, mesin:0, hasConfig:false });
 
   configs.forEach(c=>{
-    if(!perLine[c.line]) perLine[c.line] = { line:c.line, target:0, output:0, present:0, absent:0, hasConfig:false };
+    if(!perLine[c.line]) perLine[c.line] = { line:c.line, target:0, output:0, present:0, absent:0, mesin:0, hasConfig:false };
     const target = c.target_output > 0 ? c.target_output : (c.smv>0 ? (c.mp*c.wh*60/c.smv) : 0);
     perLine[c.line].target = target;
+    perLine[c.line].mesin = Number(c.mesin)||0;
     perLine[c.line].hasConfig = true;
   });
   qtyLogs.forEach(q=>{
-    if(!perLine[q.line]) perLine[q.line] = { line:q.line, target:0, output:0, present:0, absent:0, hasConfig:false };
+    if(!perLine[q.line]) perLine[q.line] = { line:q.line, target:0, output:0, present:0, absent:0, mesin:0, hasConfig:false };
     // qty kini bersifat kumulatif per slot, jadi output harian = nilai kumulatif TERTINGGI, bukan hasil jumlah semua slot.
     const cum = Number(q.qty)||0;
     if(cum > perLine[q.line].output) perLine[q.line].output = cum;
   });
   attendances.forEach(a=>{
-    if(!perLine[a.line]) perLine[a.line] = { line:a.line, target:0, output:0, present:0, absent:0, hasConfig:false };
+    if(!perLine[a.line]) perLine[a.line] = { line:a.line, target:0, output:0, present:0, absent:0, mesin:0, hasConfig:false };
     perLine[a.line].present = Number(a.present_count)||0;
     perLine[a.line].absent = Number(a.absent_count)||0;
   });
 
   const rows = LINES.map(l=>perLine[l]);
+  rows.forEach(r=>{ r.mcShift = r.mesin>0 ? (r.output/r.mesin) : null; });
+
   const activeRows = rows.filter(r=>r.hasConfig || r.output>0);
   const totalOutput = rows.reduce((s,r)=>s+r.output,0);
   const totalTarget = rows.reduce((s,r)=>s+r.target,0);
   const totalPresent = rows.reduce((s,r)=>s+r.present,0);
   const totalAbsent = rows.reduce((s,r)=>s+r.absent,0);
+  const totalMesin = rows.reduce((s,r)=>s+r.mesin,0);
   const avgEff = totalTarget>0 ? Math.round((totalOutput/totalTarget)*100) : null;
+  const overallMcShift = totalMesin>0 ? (totalOutput/totalMesin) : null;
 
   const cells = rows.map(r=>{
     const eff = r.target>0 ? Math.round((r.output/r.target)*100) : null;
@@ -378,8 +383,18 @@ async function buildDashboardHtml(date){
         <div class="metric">Output: <b>${fmtNum(r.output)}</b> / ${fmtNum(r.target)}</div>
         <div class="metric">Efisiensi: <b>${eff===null?'-':eff+'%'}</b></div>
         <div class="metric">Hadir/Absen: <b>${fmtNum(r.present)}/${fmtNum(r.absent)}</b></div>
+        <div class="metric">MC Shift: <b>${r.mcShift===null?'-':fmtNum(r.mcShift,1)}</b> ${r.mesin>0?'<span style="color:var(--muted);">('+fmtNum(r.mesin)+' mesin)</span>':''}</div>
       </div>`;
   }).join('');
+
+  const mcRows = activeRows.length ? activeRows : rows.filter(r=>r.hasConfig);
+  const mcTableRows = mcRows.map(r=>`
+    <tr>
+      <td>LINE ${r.line}</td>
+      <td class="num">${fmtNum(r.output)}</td>
+      <td class="num">${fmtNum(r.mesin)}</td>
+      <td class="num">${r.mcShift===null?'-':fmtNum(r.mcShift,1)}</td>
+    </tr>`).join('');
 
   const html = `
     <div class="kpis">
@@ -387,11 +402,25 @@ async function buildDashboardHtml(date){
       <div class="kpi"><div class="lbl">Total Target</div><div class="val">${fmtNum(totalTarget)}</div></div>
       <div class="kpi"><div class="lbl">Rata-rata Efisiensi</div><div class="val">${avgEff===null?'-':avgEff+'%'}</div></div>
       <div class="kpi"><div class="lbl">Hadir / Tidak Hadir</div><div class="val">${fmtNum(totalPresent)} <small>/ ${fmtNum(totalAbsent)}</small></div></div>
+      <div class="kpi"><div class="lbl">Total Mesin Digunakan</div><div class="val">${fmtNum(totalMesin)}</div></div>
+      <div class="kpi"><div class="lbl">Rata-rata MC Shift</div><div class="val">${overallMcShift===null?'-':fmtNum(overallMcShift,1)}</div></div>
     </div>
     <div class="andon" style="display:grid;">${cells}</div>
+
+    <h3 style="margin-top:20px;">Grafik Efisiensi per Line</h3>
     <div class="chart-box"><canvas id="effChart_${date.replace(/-/g,'')}" height="90"></canvas></div>
+
+    <h3 style="margin-top:20px;">Summary MC Shift per Line</h3>
+    <p class="sub" style="margin:-6px 0 12px;">MC Shift = Output ÷ Jumlah Mesin Digunakan (diisi IE di tab Variabel Line).</p>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Line</th><th>Output</th><th>Mesin</th><th>MC Shift</th></tr></thead>
+        <tbody>${mcTableRows || '<tr><td colspan="4" style="text-align:center;color:var(--muted);">Belum ada data.</td></tr>'}</tbody>
+      </table>
+    </div>
+    <div class="chart-box"><canvas id="mcChart_${date.replace(/-/g,'')}" height="90"></canvas></div>
   `;
-  return { html, rows: activeRows.length ? activeRows : rows.filter(r=>r.hasConfig) };
+  return { html, rows: mcRows };
 }
 
 function renderEffChart(canvasId, rows){
@@ -417,6 +446,25 @@ function renderEffChart(canvasId, rows){
   });
 }
 
+function renderMcShiftChart(canvasId, rows){
+  const ctx = document.getElementById(canvasId);
+  if(!ctx || !window.Chart) return;
+  const labelled = rows.filter(r=>r.mcShift!==null);
+  if(!labelled.length) return;
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: labelled.map(r=>'Line '+r.line),
+      datasets: [{
+        label: 'MC Shift (output/mesin)',
+        data: labelled.map(r=> Math.round(r.mcShift*10)/10),
+        backgroundColor: '#26374f',
+      }]
+    },
+    options: { responsive:true, plugins:{ legend:{ display:false } }, scales:{ y:{ beginAtZero:true } } }
+  });
+}
+
 // ================================================================
 // TAMPILAN TAMU
 // ================================================================
@@ -433,6 +481,7 @@ async function renderTamuView(){
     const { html, rows } = await buildDashboardHtml(date);
     document.getElementById('tamuContent').innerHTML = html;
     renderEffChart('effChart_' + date.replace(/-/g,''), rows);
+    renderMcShiftChart('mcChart_' + date.replace(/-/g,''), rows);
   }catch(err){
     document.getElementById('tamuContent').innerHTML = '<p style="color:#c0392b;">Gagal memuat data: '+err.message+'</p>';
   }
@@ -613,6 +662,7 @@ async function renderIeDashboard(){
     const { html, rows } = await buildDashboardHtml(date);
     document.getElementById('ieDashContent').innerHTML = html;
     renderEffChart('effChart_' + date.replace(/-/g,''), rows);
+    renderMcShiftChart('mcChart_' + date.replace(/-/g,''), rows);
   }catch(err){
     document.getElementById('ieDashContent').innerHTML = '<p style="color:#c0392b;">Gagal memuat: '+err.message+'</p>';
   }
@@ -645,6 +695,9 @@ async function renderIeLineConfig(){
           <div class="field"><label>Jam Kerja (WH)</label><input type="number" step="0.5" id="lcWh" min="0"></div>
           <div class="field"><label>Target Output (opsional, override)</label><input type="number" id="lcTarget" min="0" placeholder="otomatis dari MP×WH×60/SMV"></div>
         </div>
+        <div class="field-row">
+          <div class="field"><label>Jumlah Mesin Digunakan</label><input type="number" id="lcMesin" min="0" placeholder="untuk hitung MC Shift"></div>
+        </div>
         <div class="field"><label>Catatan</label><textarea id="lcNotes" rows="2"></textarea></div>
         <p id="lcError" style="color:#c0392b;font-size:12.5px;min-height:1em;"></p>
         <button type="submit" class="btn primary">Simpan Variabel</button>
@@ -654,8 +707,8 @@ async function renderIeLineConfig(){
       <h3>Data Tersimpan</h3>
       <div class="tbl-wrap">
         <table>
-          <thead><tr><th>Line</th><th>Tanggal</th><th>Style</th><th>SMV</th><th>MP</th><th>WH</th><th>Target</th><th></th></tr></thead>
-          <tbody id="lcBody"><tr><td colspan="8" style="text-align:center;color:var(--muted);">Memuat...</td></tr></tbody>
+          <thead><tr><th>Line</th><th>Tanggal</th><th>Style</th><th>SMV</th><th>MP</th><th>WH</th><th>Mesin</th><th>Target</th><th></th></tr></thead>
+          <tbody id="lcBody"><tr><td colspan="9" style="text-align:center;color:var(--muted);">Memuat...</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -667,16 +720,17 @@ async function renderIeLineConfig(){
     try{
       const list = await apiGet('/line-config');
       lcCache = list;
-      if(!list.length){ body.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--muted);">Belum ada data.</td></tr>'; return; }
+      if(!list.length){ body.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--muted);">Belum ada data.</td></tr>'; return; }
       body.innerHTML = list.map(c=>`
         <tr>
           <td>${c.line}</td><td>${fmtDate(c.date)}</td><td>${c.style||'-'}</td>
           <td class="num">${fmtNum(c.smv,2)}</td><td class="num">${fmtNum(c.mp)}</td><td class="num">${fmtNum(c.wh,1)}</td>
+          <td class="num">${fmtNum(c.mesin)}</td>
           <td class="num">${fmtNum(c.target_output>0?c.target_output:(c.smv>0?(c.mp*c.wh*60/c.smv):0))}</td>
           <td><button class="btn ghost sm" data-id="${c.id}" onclick="fillLcForm(this.dataset.id)">Edit</button></td>
         </tr>`).join('');
     }catch(err){
-      body.innerHTML = '<tr><td colspan="8" style="color:#c0392b;">Gagal memuat: '+err.message+'</td></tr>';
+      body.innerHTML = '<tr><td colspan="9" style="color:#c0392b;">Gagal memuat: '+err.message+'</td></tr>';
     }
   }
 
@@ -693,6 +747,7 @@ async function renderIeLineConfig(){
     document.getElementById('lcMp').value = c.mp||'';
     document.getElementById('lcWh').value = c.wh||'';
     document.getElementById('lcTarget').value = c.target_output||'';
+    document.getElementById('lcMesin').value = c.mesin||'';
     document.getElementById('lcNotes').value = c.notes||'';
     window.scrollTo({top:0,behavior:'smooth'});
   };
@@ -712,6 +767,7 @@ async function renderIeLineConfig(){
       mp: document.getElementById('lcMp').value,
       wh: document.getElementById('lcWh').value,
       targetOutput: document.getElementById('lcTarget').value,
+      mesin: document.getElementById('lcMesin').value,
       notes: document.getElementById('lcNotes').value,
     };
     try{
