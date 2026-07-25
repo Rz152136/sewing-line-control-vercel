@@ -1,6 +1,8 @@
 const { getServiceClient } = require('../lib/supabaseClient');
 const { requireUser, requireRole } = require('../lib/auth');
 
+const ALLOWED_LINE_TYPES = ['normal', 'support'];
+
 function genId() {
   return 'lc' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
@@ -51,6 +53,7 @@ module.exports = async (req, res) => {
       target_output: Number(b.targetOutput) || 0,
       mesin: Number(b.mesin) || 0,
       mc_shift: Number(b.mcShift) || 0,
+      line_type: ALLOWED_LINE_TYPES.includes(b.lineType) ? b.lineType : 'normal',
       notes: String(b.notes || '').trim(),
       updated_by: user.id,
       updated_at: new Date().toISOString(),
