@@ -22,6 +22,11 @@ module.exports = async (req, res) => {
     let query = supabase.from('line_config').select('*').order('date', { ascending: false });
     if (req.query.line) query = query.eq('line', req.query.line);
     if (req.query.date) query = query.eq('date', req.query.date);
+    // 'upto': ambil semua config dengan date <= upto. Dipakai dashboard untuk
+    // menentukan variabel line yang berlaku di setiap tanggal periode --
+    // variabel line tetap berlaku (carry-forward) sampai IE mengubahnya lagi,
+    // jadi line tidak perlu punya entry baru di setiap tanggal untuk dianggap aktif.
+    if (req.query.upto) query = query.lte('date', req.query.upto);
     const { data, error } = await query;
     if (error) return res.status(500).json({ error: error.message });
     return res.status(200).json(data);
@@ -52,7 +57,6 @@ module.exports = async (req, res) => {
       wh: Number(b.wh) || 0,
       target_output: Number(b.targetOutput) || 0,
       mesin: Number(b.mesin) || 0,
-      mc_shift: Number(b.mcShift) || 0,
       line_type: ALLOWED_LINE_TYPES.includes(b.lineType) ? b.lineType : 'normal',
       notes: String(b.notes || '').trim(),
       updated_by: user.id,
