@@ -434,28 +434,29 @@ async function buildDashboardHtml(period){
   }));
 
   const perLine = {};
-  LINES.forEach(l => perLine[l] = { line:l, target:0, output:0, present:0, absent:0, mesin:0, mcShiftRaw:0, hasConfig:false, style:'' });
+  LINES.forEach(l => perLine[l] = { line:l, target:0, output:0, present:0, absent:0, mesin:0, mcShiftRaw:0, hasConfig:false, style:'', lineType:'normal' });
 
   perDate.forEach(({configs, qtyLogs, attendances})=>{
     configs.forEach(c=>{
-      if(!perLine[c.line]) perLine[c.line] = { line:c.line, target:0, output:0, present:0, absent:0, mesin:0, mcShiftRaw:0, hasConfig:false, style:'' };
+      if(!perLine[c.line]) perLine[c.line] = { line:c.line, target:0, output:0, present:0, absent:0, mesin:0, mcShiftRaw:0, hasConfig:false, style:'', lineType:'normal' };
       const target = c.target_output > 0 ? c.target_output : (c.smv>0 ? (c.mp*c.wh*60/c.smv) : 0);
       perLine[c.line].target += target;
       perLine[c.line].mesin = Number(c.mesin) || perLine[c.line].mesin;
       perLine[c.line].mcShiftRaw += Number(c.mc_shift)||0;
       perLine[c.line].style = c.style || perLine[c.line].style;
+      perLine[c.line].lineType = c.line_type === 'support' ? 'support' : 'normal';
       perLine[c.line].hasConfig = true;
     });
     const dayOutput = {};
     qtyLogs.forEach(q=>{
-      if(!perLine[q.line]) perLine[q.line] = { line:q.line, target:0, output:0, present:0, absent:0, mesin:0, mcShiftRaw:0, hasConfig:false, style:'' };
+      if(!perLine[q.line]) perLine[q.line] = { line:q.line, target:0, output:0, present:0, absent:0, mesin:0, mcShiftRaw:0, hasConfig:false, style:'', lineType:'normal' };
       // qty bersifat kumulatif per slot per hari, jadi output harian = nilai kumulatif TERTINGGI hari itu.
       const cum = Number(q.qty)||0;
       if(!dayOutput[q.line] || cum > dayOutput[q.line]) dayOutput[q.line] = cum;
     });
     Object.keys(dayOutput).forEach(l=>{ perLine[l].output += dayOutput[l]; });
     attendances.forEach(a=>{
-      if(!perLine[a.line]) perLine[a.line] = { line:a.line, target:0, output:0, present:0, absent:0, mesin:0, mcShiftRaw:0, hasConfig:false, style:'' };
+      if(!perLine[a.line]) perLine[a.line] = { line:a.line, target:0, output:0, present:0, absent:0, mesin:0, mcShiftRaw:0, hasConfig:false, style:'', lineType:'normal' };
       perLine[a.line].present += Number(a.present_count)||0;
       perLine[a.line].absent += Number(a.absent_count)||0;
     });
@@ -479,19 +480,21 @@ async function buildDashboardHtml(period){
   rows.forEach(r=>{ r.cls = (r.hasConfig || r.outputActual>0) ? statusClass(r.eff) : 'empty'; });
 
   const activeRows = rows.filter(r=>r.hasConfig || r.outputActual>0);
-  const totalOutputActual = rows.reduce((s,r)=>s+r.outputActual,0);
-  const totalOutputConv = rows.reduce((s,r)=>s+r.outputConv,0);
-  const totalTarget = rows.reduce((s,r)=>s+r.target,0);
-  const totalPresent = rows.reduce((s,r)=>s+r.present,0);
-  const totalAbsent = rows.reduce((s,r)=>s+r.absent,0);
-  const totalMesin = rows.reduce((s,r)=>s+r.mesin,0);
-  const totalMcShift8h = rows.reduce((s,r)=>s+r.mcShift8h,0);
+  const normalRows = rows.filter(r=>r.lineType!=='support');
+  const totalOutputActual = normalRows.reduce((s,r)=>s+r.outputActual,0);
+  const totalOutputConv = normalRows.reduce((s,r)=>s+r.outputConv,0);
+  const totalTarget = normalRows.reduce((s,r)=>s+r.target,0);
+  const totalPresent = normalRows.reduce((s,r)=>s+r.present,0);
+  const totalAbsent = normalRows.reduce((s,r)=>s+r.absent,0);
+  const totalMesin = normalRows.reduce((s,r)=>s+r.mesin,0);
+  const totalMcShift8h = normalRows.reduce((s,r)=>s+r.mcShift8h,0);
   const avgEff = totalTarget>0 ? Math.round((totalOutputActual/totalTarget)*100) : null;
   const overallProductivity = totalMcShift8h>0 ? (totalOutputConv/totalMcShift8h) : null;
   const absenPct = (totalPresent+totalAbsent)>0 ? (totalAbsent/(totalPresent+totalAbsent))*100 : null;
 
   const counts = { ok:0, watch:0, risk:0, empty:0 };
-  rows.forEach(r=>counts[r.cls]++);
+  normalRows.forEach(r=>counts[r.cls]++);
+  const supportCount = rows.filter(r=>r.lineType==='support' && (r.hasConfig||r.outputActual>0)).length;
 
   const pNoun = periodLabelText(period);
   const rangeText = periodRangeText(dates, period);
@@ -499,11 +502,12 @@ async function buildDashboardHtml(period){
   const cells = rows.map(r=>{
     const barPct = r.eff===null ? 4 : Math.max(4, Math.min(r.eff, 100));
     const pillLabel = r.cls==='ok' ? 'Baik' : r.cls==='watch' ? 'Waspada' : r.cls==='risk' ? 'Kritis' : 'Belum Update';
+    const isSupport = r.lineType==='support';
     return `
-      <div class="andon cell ${r.cls}">
+      <div class="andon cell ${r.cls}" ${isSupport?'style="border-style:dashed;"':''}>
         <div class="row-top">
           <div>
-            <div class="ln">Line ${r.line}</div>
+            <div class="ln">Line ${r.line} ${isSupport?'<span class="pill" style="background:var(--watch-bg);color:var(--amber-ink);margin-left:4px;">Support</span>':''}</div>
             <div class="sub" style="margin:2px 0 0;min-height:14px;">${r.style || 'Belum ada style running'}</div>
           </div>
           <span class="pill">${pillLabel}</span>
@@ -521,15 +525,19 @@ async function buildDashboardHtml(period){
   }).join('');
 
   const mcRows = activeRows.length ? activeRows : rows.filter(r=>r.hasConfig);
-  const mcTableRows = mcRows.map(r=>`
-    <tr>
+  const mcTableRows = mcRows.map(r=>{
+    const isSupport = r.lineType==='support';
+    return `
+    <tr${isSupport?' style="opacity:.75;"':''}>
       <td>LINE ${r.line}</td>
+      <td><span class="pill" style="background:${isSupport?'var(--watch-bg)':'var(--green-bg)'};color:${isSupport?'var(--amber-ink)':'var(--green)'};">${isSupport?'Support':'Normal'}</span></td>
       <td class="num">${fmtNum(r.outputActual)}</td>
       <td class="num">${fmtNum(r.outputConv)}</td>
       <td class="num">${fmtNum(r.mesin)}</td>
       <td class="num">${r.mcShift8h>0?fmtNum(r.mcShift8h,1):'-'}</td>
       <td class="num">${r.productivity===null?'-':fmtNum(r.productivity,2)}</td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
 
   const uid = period; // suffix unik untuk canvas id
 
@@ -538,25 +546,26 @@ async function buildDashboardHtml(period){
     <p class="sub" style="margin-top:-8px;">${rangeText}</p>
 
     <div class="kpis">
-      ${kpiCard({icon:'box',tint:'var(--accent-soft)',color:'var(--accent)',label:'Output Aktual',value:fmtNum(totalOutputActual),unit:'unit',sub:'Sesuai update supervisor · '+pNoun})}
+      ${kpiCard({icon:'box',tint:'var(--accent-soft)',color:'var(--accent)',label:'Output Aktual',value:fmtNum(totalOutputActual),unit:'unit',sub:'Line Normal · '+pNoun})}
       ${kpiCard({icon:'box',tint:'var(--panel3)',color:'var(--accent)',label:'Output Konversi 8 Jam',value:fmtNum(totalOutputConv),unit:'unit',sub:'(Output Aktual ÷ 8) × 7'})}
-      ${kpiCard({icon:'target',tint:'var(--panel3)',color:'var(--accent)',label:'Total Target',value:fmtNum(totalTarget),unit:'unit'})}
-      ${kpiCard({icon:'shield',tint: avgEff===null? 'var(--panel3)' : avgEff>=75?'var(--green-bg)':avgEff>=55?'var(--watch-bg)':'var(--red-bg)', color: avgEff===null?'var(--muted)':avgEff>=75?'var(--green)':avgEff>=55?'var(--amber-ink)':'var(--red)', label:'Rata-rata Efisiensi', value:avgEff===null?'-':avgEff+'%', sub:'Target ≥ 75%'})}
-      ${kpiCard({icon:'users',tint: absenPct!==null && absenPct>5 ? 'var(--red-bg)':'var(--green-bg)', color: absenPct!==null && absenPct>5 ? 'var(--red)':'var(--green)', label:'Hadir / Tidak Hadir', value:fmtNum(totalPresent), unit:'/ '+fmtNum(totalAbsent), sub: absenPct===null?'Belum ada data':'Absensi '+fmtNum(absenPct,1)+'%'})}
-      ${kpiCard({icon:'cog',tint:'var(--panel3)',color:'var(--accent)',label:'Total Mesin Digunakan',value:fmtNum(totalMesin),unit:'mesin',sub:'Jumlah mesin aktual (input IE)'})}
-      ${kpiCard({icon:'gauge',tint:'var(--panel3)',color:'var(--accent)',label:'MC Shift (8 Jam)',value:fmtNum(totalMcShift8h,1),unit:'mesin-shift',sub:'(Total Penggunaan Mesin ÷ 8) × 7'})}
-      ${kpiCard({icon:'trend',tint:'var(--accent-soft)',color:'var(--accent)',label:'Rata-rata Productivity',value:overallProductivity===null?'-':fmtNum(overallProductivity,2),unit:'pcs/mc-shift',sub:'Output Konv. 8 Jam ÷ MC Shift 8 Jam'})}
+      ${kpiCard({icon:'target',tint:'var(--panel3)',color:'var(--accent)',label:'Total Target',value:fmtNum(totalTarget),unit:'unit',sub:'Line Normal'})}
+      ${kpiCard({icon:'shield',tint: avgEff===null? 'var(--panel3)' : avgEff>=75?'var(--green-bg)':avgEff>=55?'var(--watch-bg)':'var(--red-bg)', color: avgEff===null?'var(--muted)':avgEff>=75?'var(--green)':avgEff>=55?'var(--amber-ink)':'var(--red)', label:'Rata-rata Efisiensi', value:avgEff===null?'-':avgEff+'%', sub:'Target ≥ 75% · Line Normal'})}
+      ${kpiCard({icon:'users',tint: absenPct!==null && absenPct>5 ? 'var(--red-bg)':'var(--green-bg)', color: absenPct!==null && absenPct>5 ? 'var(--red)':'var(--green)', label:'Hadir / Tidak Hadir', value:fmtNum(totalPresent), unit:'/ '+fmtNum(totalAbsent), sub: absenPct===null?'Belum ada data':'Absensi '+fmtNum(absenPct,1)+'% · Line Normal'})}
+      ${kpiCard({icon:'cog',tint:'var(--panel3)',color:'var(--accent)',label:'Total Mesin Digunakan',value:fmtNum(totalMesin),unit:'mesin',sub:'Jumlah mesin aktual · Line Normal'})}
+      ${kpiCard({icon:'gauge',tint:'var(--panel3)',color:'var(--accent)',label:'MC Shift (8 Jam)',value:fmtNum(totalMcShift8h,1),unit:'mesin-shift',sub:'(Total Penggunaan Mesin ÷ 8) × 7 · Line Normal'})}
+      ${kpiCard({icon:'trend',tint:'var(--accent-soft)',color:'var(--accent)',label:'Rata-rata Productivity',value:overallProductivity===null?'-':fmtNum(overallProductivity,2),unit:'pcs/mc-shift',sub:'Line Normal'})}
     </div>
+    <p class="sub" style="margin:-10px 0 4px;">KPI di atas hanya menjumlahkan line berjenis <b>Normal</b>${supportCount>0?` — ${supportCount} line Support tidak diikutsertakan (tetap tampil di detail di bawah).`:'.'}</p>
 
     <div class="chart-grid">
       <div class="chart-box">
         <h3 style="margin:0 0 2px;">Efisiensi per Line</h3>
-        <p class="sub" style="margin:0 0 10px;">Target garis putus-putus di 75%</p>
+        <p class="sub" style="margin:0 0 10px;">Target garis putus-putus di 75% · semua line ditampilkan (Normal &amp; Support)</p>
         <canvas id="effChart_${uid}" height="115"></canvas>
       </div>
       <div class="chart-box">
         <h3 style="margin:0 0 2px;">Ringkasan Status</h3>
-        <p class="sub" style="margin:0 0 6px;">Sebaran kondisi seluruh line</p>
+        <p class="sub" style="margin:0 0 6px;">Sebaran kondisi line Normal</p>
         <div class="donut-wrap">
           <div style="position:relative;width:150px;height:150px;">
             <canvas id="statusDonut_${uid}" width="150" height="150"></canvas>
@@ -580,15 +589,16 @@ async function buildDashboardHtml(period){
       <span><i style="background:var(--green);"></i>Baik (≥75%)</span>
       <span><i style="background:var(--amber);"></i>Waspada (55–74%)</span>
       <span><i style="background:var(--red);"></i>Kritis (&lt;55%)</span>
+      <span><i style="background:var(--faint);border:1px dashed var(--amber-ink);"></i>Kartu putus-putus = line Support (di luar KPI)</span>
     </div>
     <div class="andon">${cells}</div>
 
     <h3 style="margin-top:22px;">Summary MC Shift &amp; Productivity per Line</h3>
-    <p class="sub" style="margin:-6px 0 12px;">MC Shift (8 Jam) = (Total Penggunaan Mesin ÷ 8) × 7. Output Konversi 8 Jam = (Output Aktual ÷ 8) × 7. Productivity = Output Konversi 8 Jam ÷ MC Shift (8 Jam).</p>
+    <p class="sub" style="margin:-6px 0 12px;">MC Shift (8 Jam) = (Total Penggunaan Mesin ÷ 8) × 7. Output Konversi 8 Jam = (Output Aktual ÷ 8) × 7. Productivity = Output Konversi 8 Jam ÷ MC Shift (8 Jam). Baris Support ditampilkan untuk visibilitas tapi tidak dijumlahkan ke KPI di atas.</p>
     <div class="tbl-wrap">
       <table>
-        <thead><tr><th>Line</th><th>Output Aktual</th><th>Output Konv. 8 Jam</th><th>Mesin</th><th>MC Shift (8 Jam)</th><th>Productivity</th></tr></thead>
-        <tbody>${mcTableRows || '<tr><td colspan="6" style="text-align:center;color:var(--muted);">Belum ada data.</td></tr>'}</tbody>
+        <thead><tr><th>Line</th><th>Jenis</th><th>Output Aktual</th><th>Output Konv. 8 Jam</th><th>Mesin</th><th>MC Shift (8 Jam)</th><th>Productivity</th></tr></thead>
+        <tbody>${mcTableRows || '<tr><td colspan="7" style="text-align:center;color:var(--muted);">Belum ada data.</td></tr>'}</tbody>
       </table>
     </div>
     <div class="chart-box"><canvas id="mcChart_${uid}" height="90"></canvas></div>
@@ -921,7 +931,7 @@ async function renderIeLineConfig(){
   root.innerHTML = `
     <div class="panel">
       <h2>Variabel per Line</h2>
-      <p class="sub">Style, SMV, target, rencana tanggal — sekali diisi berlaku untuk tanggal tersebut.</p>
+      <p class="sub">Style, SMV, target, rencana tanggal — sekali diisi berlaku untuk tanggal tersebut. Jenis Line <b>Normal</b> ikut dijumlahkan di KPI Dashboard; jenis <b>Support</b> tetap tampil di detail per-line tapi tidak dijumlahkan di KPI.</p>
       <form id="lcForm">
         <div class="field-row">
           <div class="field"><label>Line</label>
@@ -929,6 +939,12 @@ async function renderIeLineConfig(){
           </div>
           <div class="field"><label>Tanggal</label><input type="date" id="lcDate" value="${date}"></div>
           <div class="field"><label>Style</label><input type="text" id="lcStyle"></div>
+          <div class="field"><label>Jenis Line</label>
+            <select id="lcLineType">
+              <option value="normal">Normal</option>
+              <option value="support">Support</option>
+            </select>
+          </div>
         </div>
         <div class="field-row">
           <div class="field"><label>Qty Order</label><input type="number" id="lcQtyOrder" min="0"></div>
@@ -954,8 +970,8 @@ async function renderIeLineConfig(){
       <h3>Data Tersimpan</h3>
       <div class="tbl-wrap">
         <table>
-          <thead><tr><th>Line</th><th>Tanggal</th><th>Style</th><th>SMV</th><th>MP</th><th>WH</th><th>Mesin</th><th>MC Shift</th><th>Target</th><th></th></tr></thead>
-          <tbody id="lcBody"><tr><td colspan="10" style="text-align:center;color:var(--muted);">Memuat...</td></tr></tbody>
+          <thead><tr><th>Line</th><th>Jenis</th><th>Tanggal</th><th>Style</th><th>SMV</th><th>MP</th><th>WH</th><th>Mesin</th><th>MC Shift</th><th>Target</th><th></th></tr></thead>
+          <tbody id="lcBody"><tr><td colspan="11" style="text-align:center;color:var(--muted);">Memuat...</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -967,18 +983,23 @@ async function renderIeLineConfig(){
     try{
       const list = await apiGet('/line-config');
       lcCache = list;
-      if(!list.length){ body.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--muted);">Belum ada data.</td></tr>'; return; }
-      body.innerHTML = list.map(c=>`
+      if(!list.length){ body.innerHTML = '<tr><td colspan="11" style="text-align:center;color:var(--muted);">Belum ada data.</td></tr>'; return; }
+      body.innerHTML = list.map(c=>{
+        const isSupport = c.line_type === 'support';
+        return `
         <tr>
-          <td>${c.line}</td><td>${fmtDate(c.date)}</td><td>${c.style||'-'}</td>
+          <td>${c.line}</td>
+          <td><span class="pill" style="background:${isSupport?'var(--watch-bg)':'var(--green-bg)'};color:${isSupport?'var(--amber-ink)':'var(--green)'};">${isSupport?'Support':'Normal'}</span></td>
+          <td>${fmtDate(c.date)}</td><td>${c.style||'-'}</td>
           <td class="num">${fmtNum(c.smv,2)}</td><td class="num">${fmtNum(c.mp)}</td><td class="num">${fmtNum(c.wh,1)}</td>
           <td class="num">${fmtNum(c.mesin)}</td>
           <td class="num">${fmtNum(c.mc_shift,1)}</td>
           <td class="num">${fmtNum(c.target_output>0?c.target_output:(c.smv>0?(c.mp*c.wh*60/c.smv):0))}</td>
           <td><button class="btn ghost sm" data-id="${c.id}" onclick="fillLcForm(this.dataset.id)">Edit</button></td>
-        </tr>`).join('');
+        </tr>`;
+      }).join('');
     }catch(err){
-      body.innerHTML = '<tr><td colspan="10" style="color:var(--red);">Gagal memuat: '+err.message+'</td></tr>';
+      body.innerHTML = '<tr><td colspan="11" style="color:var(--red);">Gagal memuat: '+err.message+'</td></tr>';
     }
   }
 
@@ -988,6 +1009,7 @@ async function renderIeLineConfig(){
     document.getElementById('lcLine').value = c.line;
     document.getElementById('lcDate').value = c.date;
     document.getElementById('lcStyle').value = c.style||'';
+    document.getElementById('lcLineType').value = c.line_type==='support' ? 'support' : 'normal';
     document.getElementById('lcQtyOrder').value = c.qty_order||'';
     document.getElementById('lcPlanStart').value = c.plan_start||'';
     document.getElementById('lcPlanFinish').value = c.plan_finish||'';
@@ -1009,6 +1031,7 @@ async function renderIeLineConfig(){
       line: document.getElementById('lcLine').value,
       date: document.getElementById('lcDate').value,
       style: document.getElementById('lcStyle').value,
+      lineType: document.getElementById('lcLineType').value,
       qtyOrder: document.getElementById('lcQtyOrder').value,
       planStart: document.getElementById('lcPlanStart').value,
       planFinish: document.getElementById('lcPlanFinish').value,
