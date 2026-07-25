@@ -293,13 +293,12 @@ const ICONS = {
 function iconSvg(name){
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONS[name]||ICONS.box}</svg>`;
 }
-function kpiCard({icon,tint,color,label,value,unit,sub}){
+function kpiCard({icon,tint,color,label,value,unit}){
   return `
     <div class="kpi">
       <div class="icn" style="background:${tint};color:${color};">${iconSvg(icon)}</div>
       <div class="lbl">${label}</div>
       <div class="val">${value}${unit?` <small>${unit}</small>`:''}</div>
-      ${sub?`<div class="sub" style="margin:5px 0 0;">${sub}</div>`:''}
     </div>`;
 }
 
@@ -575,7 +574,6 @@ async function buildDashboardHtml(period){
       ${kpiCard({icon:'trend',tint:'var(--accent-soft)',color:'var(--accent)',label:'Rata-rata Productivity',value:overallProductivity===null?'-':fmtNum(overallProductivity,2),unit:'pcs/mc-shift',sub:'Line Normal'})}
       ${kpiCard({icon:'trend',tint:'var(--accent-soft)',color:'var(--accent)',label:'Contribution',value:overallContribution===null?'-':fmtNum(overallContribution,0),unit:'/mc-shift',sub:'Productivity × Gross Margin · Line Normal'})}
     </div>
-    <p class="sub" style="margin:-10px 0 4px;">KPI Output/Target/Efisiensi/Productivity/Contribution di atas hanya menjumlahkan line berjenis <b>Normal</b>${supportCount>0?` — ${supportCount} line Support tidak diikutsertakan (tetap tampil di detail di bawah).`:'.'} KPI Hadir/Tidak Hadir mencakup <b>semua line</b> (Normal &amp; Support).</p>
 
     <div class="chart-grid">
       <div class="chart-box">
