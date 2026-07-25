@@ -55,6 +55,7 @@ module.exports = async (req, res) => {
       smv: Number(b.smv) || 0,
       mp: Number(b.mp) || 0,
       wh: Number(b.wh) || 0,
+      shift_start: b.shiftStart ? String(b.shiftStart).trim() : null,
       target_output: Number(b.targetOutput) || 0,
       mesin: Number(b.mesin) || 0,
       line_type: ALLOWED_LINE_TYPES.includes(b.lineType) ? b.lineType : 'normal',
