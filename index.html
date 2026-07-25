@@ -514,8 +514,8 @@ async function buildDashboardHtml(period){
   );
 
   // ---- Konversi MC Shift ke basis shift 8 jam ----
-  // MC Shift (8 Jam) = (Jumlah Mesin Digunakan / 8) * 7
-  // Productivity = Output Aktual ÷ MC Shift (8 Jam)
+  // MC Shift = Jumlah Mesin Digunakan / 8 * 7
+  // Productivity = Output Aktual ÷ MC Shift
   // Contribution = Productivity x Gross Margin (nilai global, diatur IE)
   rows.forEach(r=>{
     r.outputActual = r.output;                    // output aktual, sesuai update supervisor (tidak dikonversi)
@@ -554,7 +554,7 @@ async function buildDashboardHtml(period){
     const barPct = r.eff===null ? 4 : Math.max(4, Math.min(r.eff, 100));
     const pillLabel = r.cls==='ok' ? 'Baik' : r.cls==='watch' ? 'Waspada' : r.cls==='risk' ? 'Kritis' : 'Belum Update';
     const isSupport = r.lineType==='support';
-    const mcShiftMetric = isIE ? `<div class="metric">MC Shift (8 Jam)<b>${r.mcShift8h>0?fmtNum(r.mcShift8h,1):'-'}</b></div>` : '';
+    const mcShiftMetric = isIE ? `<div class="metric">MC Shift<b>${r.mcShift8h>0?fmtNum(r.mcShift8h,1):'-'}</b></div>` : '';
     return `
       <div class="andon cell ${r.cls}" ${isSupport?'style="border-style:dashed;"':''}>
         <div class="row-top">
@@ -564,7 +564,7 @@ async function buildDashboardHtml(period){
           </div>
           <span class="pill">${pillLabel}</span>
         </div>
-        <div class="sub" style="margin:0 0 3px;display:flex;justify-content:space-between;"><span>Efisiensi <span style="color:var(--faint);">(target 75% · s.d. jam ini)</span></span><b style="font-family:var(--mono);color:var(--ink);">${r.eff===null?'-':r.eff+'%'}</b></div>
+        <div class="sub" style="margin:0 0 3px;display:flex;justify-content:space-between;"><span>Efisiensi</span><b style="font-family:var(--mono);color:var(--ink);">${r.eff===null?'-':r.eff+'%'}</b></div>
         <div class="bar-track"><div class="bar-fill" style="width:${barPct}%;"></div></div>
         <div class="grid2">
           <div class="metric">Output Aktual<b>${fmtNum(r.outputActual)}</b></div>
@@ -596,7 +596,7 @@ async function buildDashboardHtml(period){
 
   const confidentialKpis = isIE ? `
       ${kpiCard({icon:'cog',tint:'var(--panel3)',color:'var(--accent)',label:'Total Mesin Digunakan',value:fmtNum(totalMesin),unit:'mesin',sub:'Jumlah mesin aktual · Line Normal'})}
-      ${kpiCard({icon:'gauge',tint:'var(--panel3)',color:'var(--accent)',label:'MC Shift (8 Jam)',value:fmtNum(totalMcShift8h,1),unit:'mesin-shift',sub:'(Jumlah Mesin ÷ 8) × 7 · Line Normal'})}` : '';
+      ${kpiCard({icon:'gauge',tint:'var(--panel3)',color:'var(--accent)',label:'MC Shift',value:fmtNum(totalMcShift8h,1),unit:'mesin-shift',sub:'Jumlah Mesin ÷ 8 × 7 · Line Normal'})}` : '';
 
   const html = `
     ${periodToggleHtml(period, 'dash')}
@@ -621,7 +621,6 @@ async function buildDashboardHtml(period){
       </div>
       <div class="chart-box">
         <h3 style="margin:0 0 2px;">Ringkasan Status</h3>
-        <p class="sub" style="margin:0 0 6px;">Sebaran kondisi line Normal</p>
         <div class="donut-wrap">
           <div style="position:relative;width:150px;height:150px;">
             <canvas id="statusDonut_${uid}" width="150" height="150"></canvas>
@@ -650,10 +649,9 @@ async function buildDashboardHtml(period){
     <div class="andon">${cells}</div>
 
     <h3 style="margin-top:22px;">Summary Productivity &amp; Contribution per Line</h3>
-    <p class="sub" style="margin:-6px 0 12px;">MC Shift (8 Jam) = (Jumlah Mesin ÷ 8) × 7. Productivity = Output Aktual ÷ MC Shift (8 Jam). Contribution = Productivity × Gross Margin. Baris Support ditampilkan untuk visibilitas tapi tidak dijumlahkan ke KPI di atas.</p>
     <div class="tbl-wrap">
       <table>
-        <thead><tr><th>Line</th><th>Jenis</th><th>Output Aktual</th>${isIE?'<th>Mesin</th><th>MC Shift (8 Jam)</th>':''}<th>Productivity</th><th>Contribution</th></tr></thead>
+        <thead><tr><th>Line</th><th>Jenis</th><th>Output Aktual</th>${isIE?'<th>Mesin</th><th>MC Shift</th>':''}<th>Productivity</th><th>Contribution</th></tr></thead>
         <tbody>${mcTableRows || `<tr><td colspan="${isIE?7:5}" style="text-align:center;color:var(--muted);">Belum ada data.</td></tr>`}</tbody>
       </table>
     </div>
@@ -720,7 +718,7 @@ function renderMcShiftChart(canvasId, rows){
     data: {
       labels: labelled.map(r=>'Line '+r.line),
       datasets: [{
-        label: 'MC Shift 8 Jam ((Jumlah Mesin ÷ 8) × 7)',
+        label: 'MC Shift (Jumlah Mesin ÷ 8 × 7)',
         data: labelled.map(r=> Math.round(r.mcShift8h*10)/10),
         backgroundColor: '#1f6d4c',
         borderRadius: 6,
@@ -744,7 +742,7 @@ function renderProductivityChart(canvasId, rows){
     data: {
       labels: labelled.map(r=>'Line '+r.line),
       datasets: [{
-        label: 'Productivity (Output Aktual ÷ MC Shift 8 Jam)',
+        label: 'Productivity (Output Aktual ÷ MC Shift)',
         data: labelled.map(r=> Math.round(r.productivity*100)/100),
         backgroundColor: '#e8a23a',
         borderRadius: 6,
@@ -1027,7 +1025,7 @@ async function renderIeLineConfig(){
           <div class="field"><label>Target Output (opsional, override)</label><input type="number" id="lcTarget" min="0" placeholder="otomatis dari MP×WH×60/SMV"></div>
         </div>
         <div class="field-row">
-          <div class="field"><label>Jumlah Mesin Digunakan</label><input type="number" id="lcMesin" min="0" placeholder="jumlah unit mesin di line — otomatis dikonversi ke MC Shift 8 Jam di Dashboard"></div>
+          <div class="field"><label>Jumlah Mesin Digunakan</label><input type="number" id="lcMesin" min="0" placeholder="jumlah unit mesin di line — otomatis dikonversi ke MC Shift di Dashboard"></div>
         </div>
         <div class="field"><label>Catatan</label><textarea id="lcNotes" rows="2"></textarea></div>
         <p id="lcError" style="color:var(--red);font-size:12.5px;min-height:1em;"></p>
@@ -1038,7 +1036,7 @@ async function renderIeLineConfig(){
       <h3>Data Tersimpan</h3>
       <div class="tbl-wrap">
         <table>
-          <thead><tr><th>Line</th><th>Jenis</th><th>Tanggal</th><th>Style</th><th>SMV</th><th>MP</th><th>WH</th><th>Jam Mulai</th><th>Mesin</th><th>MC Shift (8 Jam)</th><th>Target</th><th></th></tr></thead>
+          <thead><tr><th>Line</th><th>Jenis</th><th>Tanggal</th><th>Style</th><th>SMV</th><th>MP</th><th>WH</th><th>Jam Mulai</th><th>Mesin</th><th>MC Shift</th><th>Target</th><th></th></tr></thead>
           <tbody id="lcBody"><tr><td colspan="12" style="text-align:center;color:var(--muted);">Memuat...</td></tr></tbody>
         </table>
       </div>
