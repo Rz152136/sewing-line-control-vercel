@@ -498,7 +498,24 @@ async function buildDashboardHtml(period){
   // Jam Mulai Shift, fallback ke target harian penuh (perilaku lama, tidak berubah).
   function targetToDate(c, date, fullTarget){
     if(!c.shift_start || !(c.wh>0)) return fullTarget;
-    const shiftStart = new Date(date+'T'+c.shift_start+':00');
+    const parts = String(c.shift_start).split(':');
+    const sh = Number(parts[0]), sm = Number(parts[1]||0);
+    if(isNaN(sh)) return fullTarget;
+    const shiftStartHour = sh + sm/60;
+    const crossesMidnight = (shiftStartHour + Number(c.wh)) > 24;
+    // 'date' di sini adalah tanggal BISNIS (tanggal shift berakhir/tempat output
+    // dicatat -- lihat computeBusinessDate). Untuk shift yang menyeberang tengah
+    // malam, jam mulai sesungguhnya ada di kalender H-1, BUKAN di 'date' itu sendiri.
+    // Kalau ini tidak dikoreksi, begitu jam sekarang lewat dari jam mulai shift lagi
+    // (siklus shift berikutnya), sisa target dihitung ulang dari 0 padahal shift
+    // hari itu sudah selesai dan outputnya sudah penuh -- efisiensi jadi meledak >100%.
+    let startDateStr = date;
+    if(crossesMidnight){
+      const d = new Date(date+'T00:00:00');
+      d.setDate(d.getDate()-1);
+      startDateStr = toDateStr(d);
+    }
+    const shiftStart = new Date(startDateStr+'T'+c.shift_start+':00');
     if(isNaN(shiftStart.getTime())) return fullTarget;
     let elapsedH = (nowMs - shiftStart.getTime()) / 3600000;
     elapsedH = Math.max(0, Math.min(elapsedH, c.wh));
