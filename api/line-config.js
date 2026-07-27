@@ -22,10 +22,10 @@ module.exports = async (req, res) => {
     let query = supabase.from('line_config').select('*').order('date', { ascending: false });
     if (req.query.line) query = query.eq('line', req.query.line);
     if (req.query.date) query = query.eq('date', req.query.date);
-    // 'upto': ambil semua config dengan date <= upto. Dipakai dashboard untuk
-    // menentukan variabel line yang berlaku di setiap tanggal periode --
-    // variabel line tetap berlaku (carry-forward) sampai IE mengubahnya lagi,
-    // jadi line tidak perlu punya entry baru di setiap tanggal untuk dianggap aktif.
+    // 'upto' dipertahankan untuk kompatibilitas lama, tapi sejak line_config
+    // hanya 1 baris aktif per line (tidak ada histori per tanggal), filter ini
+    // umumnya tidak perlu dipakai lagi -- ambil tanpa parameter untuk config
+    // terkini semua line.
     if (req.query.upto) query = query.lte('date', req.query.upto);
     const { data, error } = await query;
     if (error) return res.status(500).json({ error: error.message });
@@ -64,15 +64,16 @@ module.exports = async (req, res) => {
       updated_at: new Date().toISOString(),
     };
 
-    // upsert by (line, date). Pakai order+limit(1) alih-alih maybeSingle() supaya
-    // kalau (karena data lama) ada lebih dari satu baris untuk line+date yang sama,
+    // upsert by line SAJA (bukan line+date). Sesuai keputusan: 1 line = 1 baris
+    // aktif, selalu di-overwrite -- tidak menyimpan histori per tanggal lagi.
+    // Pakai order+limit(1) alih-alih maybeSingle() supaya kalau (karena data lama
+    // sebelum migrasi) masih ada lebih dari satu baris untuk line yang sama,
     // sistem tetap konsisten meng-update baris yang paling baru, bukan diam-diam
-    // membuat baris baru (yang menyebabkan MC Shift/Productivity kelihatan tidak berubah).
+    // membuat baris baru.
     const { data: existingRows, error: existingErr } = await supabase
       .from('line_config')
       .select('id')
       .eq('line', row.line)
-      .eq('date', row.date)
       .order('updated_at', { ascending: false })
       .limit(1);
 
