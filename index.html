@@ -96,6 +96,7 @@
   .andon .cell{border:1px solid var(--line);border-radius:14px;padding:14px 15px;background:var(--panel);transition:box-shadow .18s ease, transform .18s ease;}
   .andon .cell:hover{box-shadow:0 10px 24px -12px rgba(21,42,33,.18);transform:translateY(-1px);}
   .andon .cell.empty{opacity:.6;}
+  .andon .cell.notarget{border-color:var(--amber);}
   .andon .cell .row-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;}
   .andon .cell .ln{font-family:var(--disp);font-weight:800;font-size:15.5px;color:var(--ink);}
   .andon .cell .pill{font-size:10px;font-weight:700;padding:3px 9px;border-radius:999px;white-space:nowrap;}
@@ -103,12 +104,14 @@
   .andon .cell.watch .pill{background:var(--watch-bg);color:var(--amber-ink);}
   .andon .cell.risk .pill{background:var(--red-bg);color:var(--red);}
   .andon .cell.empty .pill{background:var(--panel2);color:var(--muted);}
+  .andon .cell.notarget .pill{background:var(--watch-bg);color:var(--amber-ink);}
   .andon .cell .bar-track{height:7px;border-radius:999px;background:var(--panel2);overflow:hidden;margin:5px 0 12px;}
   .andon .cell .bar-fill{height:100%;border-radius:999px;}
   .andon .cell.ok .bar-fill{background:var(--green);}
   .andon .cell.watch .bar-fill{background:var(--amber);}
   .andon .cell.risk .bar-fill{background:var(--red);}
   .andon .cell.empty .bar-fill{background:var(--faint);}
+  .andon .cell.notarget .bar-fill{background:var(--amber);}
   .andon .cell .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
   .andon .cell .metric{font-size:11px;color:var(--muted);}
   .andon .cell .metric b{display:block;color:var(--ink);font-family:var(--mono);font-size:13.5px;font-weight:700;margin-top:1px;}
@@ -275,8 +278,8 @@ function periodLabelText(period){ return period==='weekly' ? 'minggu ini' : peri
 // harus masuk ke SATU tanggal yang sama: tanggal shift itu berakhir.
 async function getEffectiveLineConfig(line, asOfDate){
   try{
-    const list = await apiGet('/line-config?line='+encodeURIComponent(line)+'&upto='+asOfDate);
-    return list && list.length ? list[0] : null; // API mengurutkan descending by date
+    const list = await apiGet('/line-config?line='+encodeURIComponent(line));
+    return list && list.length ? list[0] : null;
   }catch(err){ return null; }
 }
 function computeBusinessDate(shiftStart, wh){
@@ -460,10 +463,10 @@ async function buildDashboardHtml(period){
   const isIE = currentUser && currentUser.role === 'ie';
 
   const [allConfigs, perDateOutputs, settings] = await Promise.all([
-    // Ambil semua variabel line s.d. tanggal terakhir periode sekali saja.
-    // Variabel line (mesin, SMV, MP, WH, dst) berlaku terus (carry-forward)
-    // sampai IE mengubahnya lagi -- tidak perlu entry baru tiap tanggal.
-    apiGet('/line-config?upto=' + dates[dates.length - 1]),
+    // Sejak line_config disederhanakan jadi 1 baris aktif per line (tidak ada
+    // histori per tanggal lagi), config ini berlaku untuk seluruh tanggal di
+    // periode -- cukup ambil sekali tanpa filter tanggal.
+    apiGet('/line-config'),
     Promise.all(dates.map(async d=>{
       const [qtyLogs, attendances] = await Promise.all([
         apiGet('/qty-logs?date=' + d),
@@ -475,23 +478,12 @@ async function buildDashboardHtml(period){
   ]);
   const grossMargin = Number(settings.gross_margin) || 0;
 
-  // Kelompokkan config per line, urut naik berdasarkan tanggal, supaya untuk
-  // tiap tanggal di periode kita bisa cari config "efektif" terakhir (<= tanggal itu).
+  // 1 baris config per line -- berlaku sama untuk semua tanggal di periode.
   const configsByLine = {};
-  allConfigs.forEach(c=>{
-    if(!configsByLine[c.line]) configsByLine[c.line] = [];
-    configsByLine[c.line].push(c);
-  });
-  Object.values(configsByLine).forEach(arr=>arr.sort((a,b)=> a.date<b.date?-1:a.date>b.date?1:0));
+  allConfigs.forEach(c=>{ configsByLine[c.line] = c; });
 
   function effectiveConfigAsOf(line, d){
-    const arr = configsByLine[line];
-    if(!arr || !arr.length) return null;
-    let result = null;
-    for(const c of arr){
-      if(c.date <= d) result = c; else break;
-    }
-    return result;
+    return configsByLine[line] || null;
   }
 
   const perLine = {};
@@ -558,7 +550,18 @@ async function buildDashboardHtml(period){
   // Efisiensi = Output Aktual ÷ Target (target berjalan/prorata jam untuk hari ini, target
   // penuh untuk hari yang sudah lewat -- lihat targetToDate()). Target efisiensi perusahaan = 75%.
   rows.forEach(r=>{ r.eff = r.target>0 ? Math.round((r.outputActual/r.target)*100) : null; });
-  rows.forEach(r=>{ r.cls = (r.hasConfig || r.outputActual>0) ? statusClass(r.eff) : 'empty'; });
+  // PENTING: cls 'empty' (badge "Belum Update") HANYA untuk line yang benar-benar
+  // belum ada aktivitas sama sekali (tidak ada config, tidak ada output). Kalau
+  // supervisor SUDAH input output tapi Efisiensi tidak bisa dihitung (target=0,
+  // biasanya karena SMV/Target belum diisi IE di menu Variabel per Line), itu
+  // bukan "Belum Update" -- itu "Target Belum Diisi". Membedakan ini supaya
+  // supervisor yang sudah update tidak salah dituduh belum update.
+  rows.forEach(r=>{
+    const hasActivity = r.hasConfig || r.outputActual>0;
+    if(!hasActivity) r.cls = 'empty';
+    else if(r.eff===null) r.cls = 'notarget';
+    else r.cls = statusClass(r.eff);
+  });
 
   const activeRows = rows.filter(r=>r.hasConfig || r.outputActual>0);
   const normalRows = rows.filter(r=>r.lineType!=='support');
@@ -575,7 +578,7 @@ async function buildDashboardHtml(period){
   const overallContribution = overallProductivity!==null ? overallProductivity * grossMargin : null;
   const absenPct = (totalPresent+totalAbsent)>0 ? (totalAbsent/(totalPresent+totalAbsent))*100 : null;
 
-  const counts = { ok:0, watch:0, risk:0, empty:0 };
+  const counts = { ok:0, watch:0, risk:0, empty:0, notarget:0 };
   normalRows.forEach(r=>counts[r.cls]++);
   const supportCount = rows.filter(r=>r.lineType==='support' && (r.hasConfig||r.outputActual>0)).length;
 
@@ -584,7 +587,7 @@ async function buildDashboardHtml(period){
 
   const cells = rows.map(r=>{
     const barPct = r.eff===null ? 4 : Math.max(4, Math.min(r.eff, 100));
-    const pillLabel = r.cls==='ok' ? 'Baik' : r.cls==='watch' ? 'Waspada' : r.cls==='risk' ? 'Kritis' : 'Belum Update';
+    const pillLabel = r.cls==='ok' ? 'Baik' : r.cls==='watch' ? 'Waspada' : r.cls==='risk' ? 'Kritis' : r.cls==='notarget' ? 'Target Belum Diisi' : 'Belum Update';
     const isSupport = r.lineType==='support';
     const mcShiftMetric = isIE ? `<div class="metric">MC Shift<b>${r.mcShift8h>0?fmtNum(r.mcShift8h,1):'-'}</b></div>` : '';
     return `
@@ -666,6 +669,7 @@ async function buildDashboardHtml(period){
             <span><i style="background:var(--amber);"></i>Waspada ${counts.watch}</span>
             <span><i style="background:var(--red);"></i>Kritis ${counts.risk}</span>
             <span><i style="background:var(--faint);"></i>Belum ${counts.empty}</span>
+            <span><i style="background:var(--amber);"></i>Target Kosong ${counts.notarget}</span>
           </div>
         </div>
       </div>
@@ -729,10 +733,10 @@ function renderStatusDonut(canvasId, counts){
   new Chart(ctx, {
     type: 'doughnut',
     data: {
-      labels: ['Baik','Waspada','Kritis','Belum Update'],
+      labels: ['Baik','Waspada','Kritis','Belum Update','Target Kosong'],
       datasets: [{
-        data: [counts.ok, counts.watch, counts.risk, counts.empty],
-        backgroundColor: ['#1f9e6b','#e8a23a','#e15c5c','#e5ebe7'],
+        data: [counts.ok, counts.watch, counts.risk, counts.empty, counts.notarget],
+        backgroundColor: ['#1f9e6b','#e8a23a','#e15c5c','#e5ebe7','#f2c14e'],
         borderWidth: 0,
       }]
     },
@@ -1036,7 +1040,7 @@ async function renderIeLineConfig(){
     </div>
     <div class="panel">
       <h2>Variabel per Line</h2>
-      <p class="sub">Style, SMV, target, rencana tanggal — sekali diisi berlaku untuk tanggal tersebut. Jenis Line <b>Normal</b> ikut dijumlahkan di KPI Dashboard; jenis <b>Support</b> tetap tampil di detail per-line tapi tidak dijumlahkan di KPI.</p>
+      <p class="sub">Style, SMV, target, rencana tanggal — 1 line hanya punya 1 baris aktif; simpan ulang akan menimpa (overwrite) data sebelumnya, bukan menambah baris baru. Jenis Line <b>Normal</b> ikut dijumlahkan di KPI Dashboard; jenis <b>Support</b> tetap tampil di detail per-line tapi tidak dijumlahkan di KPI.</p>
       <form id="lcForm">
         <div class="field-row">
           <div class="field"><label>Line</label>
