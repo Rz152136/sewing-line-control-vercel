@@ -120,6 +120,17 @@
   .legend-row span{display:inline-flex;align-items:center;gap:5px;}
   .legend-row i{width:8px;height:8px;border-radius:50%;display:inline-block;}
 
+  /* ---- Modal detail line ---- */
+  .modal-overlay{position:fixed;inset:0;background:rgba(21,42,33,.45);z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px;}
+  .modal-overlay.hidden{display:none;}
+  .modal-box{background:var(--panel);border-radius:18px;max-width:480px;width:100%;max-height:85vh;overflow-y:auto;padding:24px;position:relative;box-shadow:0 24px 60px -20px rgba(21,42,33,.4);}
+  .modal-close{position:absolute;top:14px;right:14px;background:var(--panel2);border:none;border-radius:999px;width:30px;height:30px;font-size:18px;line-height:1;cursor:pointer;color:var(--muted);}
+  .modal-close:hover{background:var(--panel3);color:var(--ink);}
+  .detail-row{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px;}
+  .detail-row:last-child{border-bottom:none;}
+  .detail-row .k{color:var(--muted);}
+  .detail-row .v{font-family:var(--mono);font-weight:600;color:var(--ink);text-align:right;}
+
   .field{display:flex;flex-direction:column;gap:5px;margin-bottom:12px;}
   .field label{font-size:11px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.4px;}
   .field input,.field select,.field textarea{padding:9px 11px;border:1px solid var(--line);border-radius:10px;font-size:14px;font-family:var(--body);background:var(--panel2);}
@@ -236,6 +247,13 @@
 </div>
 
 <div class="toast" id="toast"></div>
+
+<div id="lineDetailOverlay" class="modal-overlay hidden" onclick="if(event.target===this) closeLineDetail()">
+  <div class="modal-box">
+    <button class="modal-close" onclick="closeLineDetail()">&times;</button>
+    <div id="lineDetailContent"></div>
+  </div>
+</div>
 
 <script>
 const LINES = ['1A','1B','2','3','4','5','8','9A','9B','11A','11B','12A','12B','13A','13B','14'];
@@ -369,6 +387,53 @@ function periodRangeText(dates, period){
   const last = new Date(dates[dates.length-1]+'T00:00:00').toLocaleDateString('id-ID',{day:'numeric',month:'short',year:'numeric'});
   return first+' – '+last+' · '+dates.length+' hari';
 }
+// ---------- Modal detail line ----------
+function closeLineDetail(){
+  document.getElementById('lineDetailOverlay').classList.add('hidden');
+}
+function openLineDetail(line){
+  const r = __lineDetailRows[line];
+  if(!r) return;
+  const isSupport = r.lineType==='support';
+  const pillLabel = r.cls==='ok' ? 'Baik' : r.cls==='watch' ? 'Waspada' : r.cls==='risk' ? 'Kritis' : r.cls==='notarget' ? 'Target Belum Diisi' : 'Belum Update';
+
+  const row = (k,v) => `<div class="detail-row"><span class="k">${k}</span><span class="v">${v}</span></div>`;
+  const confidentialRows = __lineDetailIsIE ? `
+    ${row('Jumlah Mesin', fmtNum(r.mesin))}
+    ${row('MC Shift (Mesin÷8×7)', r.mcShift8h>0?fmtNum(r.mcShift8h,1):'-')}
+  ` : '';
+
+  document.getElementById('lineDetailContent').innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:2px;">
+      <h2 style="margin:0;font-family:var(--disp);font-size:20px;">Line ${r.line}</h2>
+      ${isSupport?'<span class="pill" style="background:var(--watch-bg);color:var(--amber-ink);">Support</span>':''}
+      <span class="pill" style="margin-left:auto;background:var(--panel2);">${pillLabel}</span>
+    </div>
+    <p class="sub" style="margin:2px 0 14px;">${__lineDetailRangeText}</p>
+
+    ${row('Style', r.style || '-')}
+    ${row('Qty Order', r.qtyOrder>0 ? fmtNum(r.qtyOrder) : '-')}
+    ${row('Plan Start', r.planStart ? fmtDate(r.planStart) : '-')}
+    ${row('Plan Finish', r.planFinish ? fmtDate(r.planFinish) : '-')}
+    ${row('SMV', r.smv>0 ? fmtNum(r.smv,2) : '-')}
+    ${row('Manpower (MP)', r.mp>0 ? fmtNum(r.mp) : '-')}
+    ${row('Jam Kerja (WH)', r.wh>0 ? fmtNum(r.wh,1) : '-')}
+    ${row('Jam Mulai Shift', r.shiftStart || '-')}
+    ${row('Target (s.d. sekarang)', fmtNum(r.target))}
+    ${row('Target Harian Penuh', fmtNum(r.targetFull))}
+    ${row('Output Aktual', fmtNum(r.outputActual))}
+    ${row('Efisiensi', r.eff===null?'-':r.eff+'%')}
+    ${confidentialRows}
+    ${row('Productivity', r.productivity===null?'-':fmtNum(r.productivity,2))}
+    ${row('Contribution', r.contribution===null?'-':fmtNum(r.contribution,0))}
+    ${row('Hadir', fmtNum(r.present))}
+    ${row('Tidak Hadir', fmtNum(r.absent))}
+    ${r.notes ? row('Catatan', r.notes) : ''}
+  `;
+  document.getElementById('lineDetailOverlay').classList.remove('hidden');
+}
+document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeLineDetail(); });
+
 function periodToggleHtml(active, groupId){
   const opts = [['daily','Harian'],['weekly','Mingguan'],['monthly','Bulanan']];
   return `<div class="period-toggle" data-group="${groupId}">${opts.map(([k,l])=>
@@ -408,6 +473,9 @@ try {
   box.textContent = 'Gagal membuat koneksi Supabase: ' + e.message + '. Cek ulang SUPABASE_URL & SUPABASE_ANON_KEY di index.html.';
 }
 let currentUser = null; // { id, email, fullName, role, line }
+let __lineDetailRows = {};
+let __lineDetailIsIE = false;
+let __lineDetailRangeText = '';
 
 async function authHeader(){
   const { data:{ session } } = await sbClient.auth.getSession();
@@ -540,7 +608,9 @@ async function buildDashboardHtml(period){
 
   // 1 baris config per line -- berlaku sama untuk semua tanggal di periode.
   const configsByLine = {};
-  allConfigs.forEach(c=>{ configsByLine[c.line] = c; });
+  allConfigs.forEach(c=>{
+    if(!configsByLine[c.line] || c.date > configsByLine[c.line].date) configsByLine[c.line] = c;
+  });
 
   function effectiveConfigAsOf(line, d){
     return configsByLine[line] || null;
@@ -593,6 +663,14 @@ async function buildDashboardHtml(period){
         perLine[l].style = c.style || perLine[l].style;
         perLine[l].lineType = c.line_type === 'support' ? 'support' : 'normal';
         perLine[l].hasConfig = true;
+        perLine[l].smv = c.smv;
+        perLine[l].mp = c.mp;
+        perLine[l].wh = c.wh;
+        perLine[l].shiftStart = c.shift_start || null;
+        perLine[l].planStart = c.plan_start || null;
+        perLine[l].planFinish = c.plan_finish || null;
+        perLine[l].qtyOrder = Number(c.qty_order) || 0;
+        perLine[l].notes = c.notes || '';
       }
     });
     const dayOutput = {};
@@ -668,7 +746,7 @@ async function buildDashboardHtml(period){
     const isSupport = r.lineType==='support';
     const mcShiftMetric = isIE ? `<div class="metric">MC Shift<b>${r.mcShift8h>0?fmtNum(r.mcShift8h,1):'-'}</b></div>` : '';
     return `
-      <div class="andon cell ${r.cls}" ${isSupport?'style="border-style:dashed;"':''}>
+      <div class="andon cell ${r.cls}" onclick="openLineDetail('${r.line}')" style="cursor:pointer;${isSupport?'border-style:dashed;':''}">
         <div class="row-top">
           <div>
             <div class="ln">Line ${r.line} ${isSupport?'<span class="pill" style="background:var(--watch-bg);color:var(--amber-ink);margin-left:4px;">Support</span>':''}</div>
@@ -773,6 +851,11 @@ async function buildDashboardHtml(period){
     <h3 style="margin-top:20px;">Grafik Productivity per Line</h3>
     <div class="chart-box"><canvas id="prodChart_${uid}" height="90"></canvas></div>
   `;
+  __lineDetailRows = {};
+  rows.forEach(r=>{ __lineDetailRows[r.line] = r; });
+  __lineDetailIsIE = isIE;
+  __lineDetailRangeText = rangeText;
+
   return { html, rows: mcRows, counts, uid, isIE };
 }
 
@@ -1173,8 +1256,18 @@ async function renderIeLineConfig(){
     try{
       const list = await apiGet('/line-config');
       lcCache = list;
-      if(!list.length){ body.innerHTML = '<tr><td colspan="12" style="text-align:center;color:var(--muted);">Belum ada data.</td></tr>'; return; }
-      body.innerHTML = list.map(c=>{
+
+      // Jaga-jaga: kalau migrasi cleanup belum dijalankan (masih ada baris
+      // duplikat lama), tetap tampilkan hanya 1 baris terbaru per line.
+      // Setelah migrasi dijalankan, list ini memang sudah otomatis unik.
+      const latestByLine = {};
+      list.forEach(c=>{
+        if(!latestByLine[c.line] || c.date > latestByLine[c.line].date) latestByLine[c.line] = c;
+      });
+      const latest = Object.values(latestByLine).sort((a,b)=> a.line.localeCompare(b.line));
+
+      if(!latest.length){ body.innerHTML = '<tr><td colspan="12" style="text-align:center;color:var(--muted);">Belum ada data.</td></tr>'; return; }
+      body.innerHTML = latest.map(c=>{
         const isSupport = c.line_type === 'support';
         return `
         <tr>
