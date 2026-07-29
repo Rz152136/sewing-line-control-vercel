@@ -115,9 +115,9 @@ module.exports = async (req, res) => {
     return res.status(200).json(profile);
   }
 
-  // ---------- PATCH: ubah role / nama / line / foto user ----------
+  // ---------- PATCH: ubah role / nama / line / foto / email / password user ----------
   if (req.method === 'PATCH') {
-    const { id, role, fullName, line, photoBase64 } = req.body || {};
+    const { id, role, fullName, line, photoBase64, email, newPassword } = req.body || {};
     if (!id) return res.status(400).json({ error: 'id wajib diisi.' });
     if (id === user.id && role && role !== 'ie') {
       return res.status(400).json({ error: 'Tidak bisa menurunkan role akun sendiri.' });
@@ -133,6 +133,24 @@ module.exports = async (req, res) => {
     if (fullName !== undefined) updates.full_name = fullName;
     if (line !== undefined) updates.line = line ? String(line).trim() : null;
 
+    // Email & password disimpan di Supabase Auth (bukan di tabel profiles),
+    // jadi keduanya butuh panggilan admin.updateUserById terpisah. Email yang
+    // valid juga disinkronkan ke profiles.email supaya daftar user tetap akurat.
+    if (email !== undefined) {
+      const trimmedEmail = String(email).trim();
+      if (!trimmedEmail) return res.status(400).json({ error: 'Email tidak boleh kosong.' });
+      const { error: emailErr } = await supabase.auth.admin.updateUserById(id, { email: trimmedEmail });
+      if (emailErr) return res.status(400).json({ error: 'Gagal ubah email: ' + emailErr.message });
+      updates.email = trimmedEmail;
+    }
+    if (newPassword !== undefined) {
+      if (String(newPassword).length < 6) {
+        return res.status(400).json({ error: 'Password baru minimal 6 karakter.' });
+      }
+      const { error: pwErr } = await supabase.auth.admin.updateUserById(id, { password: newPassword });
+      if (pwErr) return res.status(400).json({ error: 'Gagal reset password: ' + pwErr.message });
+    }
+
     if (photoBase64 !== undefined) {
       try {
         const uploaded = await uploadPhotoIfProvided(supabase, id, photoBase64);
@@ -143,6 +161,8 @@ module.exports = async (req, res) => {
     }
 
     if (Object.keys(updates).length === 0) {
+      // Boleh terjadi kalau request HANYA reset password (tidak ada kolom profiles yang berubah).
+      if (newPassword !== undefined) return res.status(200).json({ ok: true });
       return res.status(400).json({ error: 'Tidak ada perubahan yang dikirim.' });
     }
 
