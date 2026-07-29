@@ -1588,6 +1588,20 @@ async function renderIeUsers(){
         <button type="submit" class="btn primary">Buat User</button>
       </form>
     </div>
+    <div class="panel" style="max-width:480px;" id="editUserPanel">
+      <h3>Edit User</h3>
+      <form id="adminEditForm">
+        <input type="hidden" id="admEditId">
+        <div class="field"><label>Nama Lengkap</label><input type="text" id="admEditFullName" required></div>
+        <div class="field"><label>Email</label><input type="email" id="admEditEmail" required></div>
+        <div class="field"><label>Password Baru (opsional)</label><input type="text" id="admEditPassword" minlength="6" placeholder="Kosongkan jika tidak diubah"></div>
+        <p id="adminEditError" style="color:var(--red);font-size:12.5px;min-height:1em;"></p>
+        <div style="display:flex;gap:10px;">
+          <button type="submit" class="btn primary">Simpan Perubahan</button>
+          <button type="button" class="btn ghost" id="admEditCancel">Batal</button>
+        </div>
+      </form>
+    </div>
     <div class="panel">
       <h3>Daftar User</h3>
       <div class="tbl-wrap">
@@ -1598,6 +1612,7 @@ async function renderIeUsers(){
       </div>
     </div>
   `;
+  document.getElementById('editUserPanel').classList.add('hidden');
 
   const roleSel = document.getElementById('admRole');
   root.querySelectorAll('table').forEach(makeTableSortable);
@@ -1637,12 +1652,55 @@ async function renderIeUsers(){
     finally{ submitBtn.disabled = false; submitBtn.textContent = 'Buat User'; }
   });
 
+  const editPanel = document.getElementById('editUserPanel');
+  window.openEditUser = function(u){
+    document.getElementById('admEditId').value = u.id;
+    document.getElementById('admEditFullName').value = u.full_name || '';
+    document.getElementById('admEditEmail').value = u.email || '';
+    document.getElementById('admEditPassword').value = '';
+    document.getElementById('adminEditError').textContent = '';
+    editPanel.classList.remove('hidden');
+    editPanel.scrollIntoView({ behavior:'smooth', block:'start' });
+  };
+  document.getElementById('admEditCancel').addEventListener('click', ()=>{
+    editPanel.classList.add('hidden');
+  });
+  document.getElementById('adminEditForm').addEventListener('submit', async (ev)=>{
+    ev.preventDefault();
+    const errEl = document.getElementById('adminEditError');
+    errEl.textContent = '';
+    const submitBtn = ev.target.querySelector('button[type="submit"]');
+    const id = document.getElementById('admEditId').value;
+    const newPassword = document.getElementById('admEditPassword').value;
+    const payload = {
+      id,
+      fullName: document.getElementById('admEditFullName').value.trim(),
+      email: document.getElementById('admEditEmail').value.trim(),
+    };
+    if(newPassword){
+      if(newPassword.length < 6){ errEl.textContent = 'Password baru minimal 6 karakter.'; return; }
+      payload.newPassword = newPassword;
+    }
+    try{
+      submitBtn.disabled = true; submitBtn.textContent = 'Menyimpan...';
+      await apiPatch('/admin/users', payload);
+      showToast('User berhasil diperbarui.');
+      editPanel.classList.add('hidden');
+      loadSupervisors();
+      loadUsers();
+    }catch(err){ errEl.textContent = 'Gagal: '+err.message; }
+    finally{ submitBtn.disabled = false; submitBtn.textContent = 'Simpan Perubahan'; }
+  });
+
   async function loadUsers(){
     const body = document.getElementById('adminUserBody');
     body.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);">Memuat...</td></tr>';
     try{
       const users = await apiGet('/admin/users');
       if(!users.length){ body.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);">Belum ada user.</td></tr>'; return; }
+      const usersById = {};
+      users.forEach(u=>{ usersById[u.id] = u; });
+      window.__adminUsersById = usersById;
       body.innerHTML = users.map(u=>{
         const created = u.created_at ? new Date(u.created_at).toLocaleDateString('id-ID') : '-';
         const isMe = u.id === currentUser.id;
@@ -1676,7 +1734,10 @@ async function renderIeUsers(){
             </select>
           </td>
           <td>${created}</td>
-          <td>${isMe?'-':`<button class="btn danger sm" onclick="adminDeleteUser('${u.id}')">Hapus</button>`}</td>
+          <td style="display:flex;gap:6px;">
+            <button class="btn ghost sm" onclick="openEditUser(__adminUsersById['${u.id}'])">Edit</button>
+            ${isMe?'':`<button class="btn danger sm" onclick="adminDeleteUser('${u.id}')">Hapus</button>`}
+          </td>
         </tr>`;
       }).join('');
 
