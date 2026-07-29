@@ -285,7 +285,7 @@
 
 <script>
 const LINES = ['1A','1B','2','3','4','5','8','9A','9B','11A','11B','12A','12B','13A','13B','14'];
-const SLOTS = ['08:00-11:00','11:00-14:00','14:00-17:00','17:00-20:00','20:00-23:00','23:00-02:00','02:00-05:00','05:00-08:00'];
+const SLOTS = ['08:00-09:00','09:00-10:00','10:00-11:00','11:00-12:00','12:00-13:00','13:00-14:00','14:00-15:00','15:00-16:00','16:00-17:00','17:00-18:00','18:00-19:00','19:00-20:00','20:00-21:00','21:00-22:00','22:00-23:00','23:00-00:00','00:00-01:00','01:00-02:00','02:00-03:00','03:00-04:00','04:00-05:00','05:00-06:00','06:00-07:00','07:00-08:00'];
 const API_BASE = '/api';
 
 // ---------- utility ----------
@@ -1132,8 +1132,8 @@ async function renderSupervisorView(){
       <p class="sub">${fmtDate(date)}</p>
       ${isOvernightNote}
 
-      <h3>Input Qty Produksi (kumulatif per 3 jam)</h3>
-      <p class="sub" style="margin:-6px 0 12px;">Isi <b>total produksi kumulatif</b> sejak awal hari sampai jam slot ini — bukan hasil 3 jam terakhir saja. Contoh: jam 08:00-11:00 = 250, jam 11:00-14:00 = 500 (artinya slot ini menghasilkan 250 pcs).</p>
+      <h3>Input Qty Produksi (kumulatif per 1 jam)</h3>
+      <p class="sub" style="margin:-6px 0 12px;">Isi <b>total produksi kumulatif</b> sejak awal hari sampai jam slot ini — bukan hasil 1 jam terakhir saja. Contoh: jam 08:00-09:00 = 80, jam 09:00-10:00 = 150 (artinya slot ini menghasilkan 70 pcs).</p>
       <form id="qtyForm">
         <div class="field-row">
           <div class="field">
