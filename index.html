@@ -239,6 +239,23 @@
   .sm-card .chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px;}
   .sm-chip{font-size:10.5px;font-weight:600;background:var(--panel2);color:var(--muted);border-radius:999px;padding:2px 8px;}
   .sm-empty{text-align:center;color:var(--muted);padding:40px 0;font-size:13px;}
+
+  /* ---- Line Skill Matrix (grid ala matrix kompetensi) ---- */
+  .smx-toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px;}
+  .smx-wrap{overflow:auto;border:1px solid var(--line);border-radius:12px;max-height:72vh;}
+  .smx-table{border-collapse:separate;border-spacing:0;font-size:11.5px;background:var(--panel);}
+  .smx-table th,.smx-table td{border-right:1px solid var(--line);border-bottom:1px solid var(--line);}
+  .smx-table thead th{background:var(--panel);position:sticky;top:0;z-index:3;height:150px;vertical-align:bottom;padding:0;min-width:30px;max-width:30px;}
+  .smx-colhead-inner{writing-mode:vertical-rl;transform:rotate(180deg);white-space:nowrap;padding:6px 4px 8px;font-size:10.5px;font-weight:700;color:var(--ink);display:inline-block;max-height:145px;overflow:hidden;text-overflow:ellipsis;}
+  .smx-table th.smx-corner{position:sticky;left:0;top:0;z-index:4;min-width:170px;max-width:170px;background:var(--panel);}
+  .smx-table td.smx-rowhead{position:sticky;left:0;z-index:2;background:var(--panel);text-align:left;padding:6px 10px;white-space:nowrap;font-weight:600;min-width:170px;max-width:170px;overflow:hidden;text-overflow:ellipsis;}
+  .smx-table tbody tr:nth-child(even) td.smx-rowhead{background:var(--panel2);}
+  .smx-cell{width:30px;min-width:30px;height:30px;text-align:center;padding:0;}
+  .smx-cell .ic{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:5px;font-size:11px;font-weight:800;}
+  .smx-cell.grade-a .ic{background:var(--green-bg);color:var(--green);}
+  .smx-cell.grade-b .ic{background:var(--watch-bg);color:var(--amber-ink);}
+  .smx-cell.grade-c .ic{background:var(--red-bg);color:var(--red);}
+  .smx-empty-cell{color:var(--faint);}
 </style>
 </head>
 <body>
@@ -311,6 +328,15 @@
       Kembali
     </button>
     <div id="lineDetailContent"></div>
+  </section>
+
+  <!-- ======================= HALAMAN SKILL MATRIX PER LINE ======================= -->
+  <section id="view-lineskillmatrix" class="hidden">
+    <button class="ld-back" onclick="closeLineSkillMatrix()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      Kembali
+    </button>
+    <div id="lineSkillMatrixContent"></div>
   </section>
 
 </main>
@@ -599,7 +625,10 @@ function renderLineDetailPage(r){
     </div>
 
     <div class="panel" style="padding:16px 18px;margin-bottom:0;margin-top:14px;" id="ldProcessPanel">
-      <h3 style="margin-bottom:6px;">Detail Proses</h3>
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;">
+        <h3 style="margin-bottom:6px;">Detail Proses</h3>
+        <button type="button" class="btn ghost sm" onclick="openLineSkillMatrix('${r.line}')">Lihat Skill Matrix Line →</button>
+      </div>
       <div class="tbl-wrap">
         <table>
           <thead><tr><th>No.</th><th>Nama Proses</th><th>SMV</th><th>Nama Operator</th><th>Nama Mesin</th></tr></thead>
@@ -663,6 +692,101 @@ async function loadLineDetailProcesses(line, style){
   }
 }
 document.addEventListener('keydown', (e)=>{ if(e.key==='Escape' && !document.getElementById('view-linedetail').classList.contains('hidden')) closeLineDetail(); });
+
+// ---------- Skill Matrix per Line (grid ala matrix kompetensi, bisa dilihat semua role) ----------
+function closeLineSkillMatrix(){
+  document.getElementById('view-lineskillmatrix').classList.add('hidden');
+  document.getElementById('view-linedetail').classList.remove('hidden');
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+async function openLineSkillMatrix(line){
+  document.getElementById('view-linedetail').classList.add('hidden');
+  document.getElementById('view-lineskillmatrix').classList.remove('hidden');
+  window.scrollTo({top:0, behavior:'smooth'});
+  await renderLineSkillMatrix(line);
+}
+
+function smxGradeOf(total){
+  if(total > 1) return 'a';
+  if(total >= 0.6) return 'b';
+  return 'c';
+}
+const SMX_ICON = { a:'&#10003;', b:'&#9888;', c:'&#10005;' }; // check, warning, x
+
+async function renderLineSkillMatrix(line){
+  const root = document.getElementById('lineSkillMatrixContent');
+  root.innerHTML = `
+    <div class="panel">
+      <h2 style="margin-bottom:2px;">Skill Matrix — Line ${escapeHtml(line)}</h2>
+      <p class="sub">Kolom = proses/skill yang pernah tercatat di line ini (semua style), baris = operator. Warna sel menandakan grade operator pada proses tersebut berdasarkan SMV.</p>
+      <div class="sm-legend">
+        <span><i style="background:var(--green);"></i> Grade A — SMV &gt; 1 menit</span>
+        <span><i style="background:var(--amber);"></i> Grade B — SMV 0,6–1 menit</span>
+        <span><i style="background:var(--red);"></i> Grade C — SMV &lt; 0,6 menit</span>
+        <span>Sel kosong = operator belum tercatat mengerjakan proses itu</span>
+      </div>
+      <div class="smx-wrap" id="smxWrap"><div class="sm-empty">Memuat...</div></div>
+    </div>
+  `;
+
+  try{
+    const rows = await apiGet('/line-processes?line='+encodeURIComponent(line));
+    const wrap = document.getElementById('smxWrap');
+    if(!rows.length){ wrap.innerHTML = '<div class="sm-empty">Belum ada breakdown proses tersimpan untuk line ini.</div>'; return; }
+
+    // Kumpulkan proses unik (kolom) & operator unik (baris), lalu rata-ratakan
+    // SMV kalau satu operator+proses muncul lebih dari sekali (beda style).
+    const processNames = [];
+    const processSeen = new Set();
+    const operatorNames = [];
+    const operatorSeen = new Set();
+    const cellMap = {}; // key: operator||proses -> {sum, count}
+
+    rows.forEach(p=>{
+      const proc = (p.nama_proses||'').trim();
+      const op = (p.nama_operator||'').trim();
+      if(!proc || !op) return;
+      if(!processSeen.has(proc)){ processSeen.add(proc); processNames.push(proc); }
+      if(!operatorSeen.has(op)){ operatorSeen.add(op); operatorNames.push(op); }
+      const key = op + '||' + proc;
+      if(!cellMap[key]) cellMap[key] = { sum:0, count:0 };
+      cellMap[key].sum += Number(p.smv) || 0;
+      cellMap[key].count += 1;
+    });
+
+    processNames.sort((a,b)=>a.localeCompare(b));
+    operatorNames.sort((a,b)=>a.localeCompare(b));
+
+    if(!processNames.length || !operatorNames.length){
+      wrap.innerHTML = '<div class="sm-empty">Data proses belum lengkap (nama proses/operator kosong).</div>';
+      return;
+    }
+
+    const theadCols = processNames.map(p=>`<th><span class="smx-colhead-inner">${escapeHtml(p)}</span></th>`).join('');
+    const bodyRows = operatorNames.map(op=>{
+      const cells = processNames.map(proc=>{
+        const key = op + '||' + proc;
+        const c = cellMap[key];
+        if(!c) return '<td class="smx-cell smx-empty-cell"></td>';
+        const avg = c.sum / c.count;
+        const g = smxGradeOf(avg);
+        return `<td class="smx-cell grade-${g}" title="${escapeHtml(proc)} — ${fmtNum(avg,2)} menit"><span class="ic">${SMX_ICON[g]}</span></td>`;
+      }).join('');
+      return `<tr><td class="smx-rowhead">${escapeHtml(op)}</td>${cells}</tr>`;
+    }).join('');
+
+    wrap.innerHTML = `
+      <table class="smx-table">
+        <thead><tr><th class="smx-corner">Nama Operator</th>${theadCols}</tr></thead>
+        <tbody>${bodyRows}</tbody>
+      </table>
+    `;
+  }catch(err){
+    document.getElementById('smxWrap').innerHTML = '<div class="sm-empty" style="color:var(--red);">Gagal memuat: '+err.message+'</div>';
+  }
+}
+document.addEventListener('keydown', (e)=>{ if(e.key==='Escape' && !document.getElementById('view-lineskillmatrix').classList.contains('hidden')) closeLineSkillMatrix(); });
 
 function periodToggleHtml(active, groupId){
   const opts = [['daily','Harian'],['weekly','Mingguan'],['monthly','Bulanan']];
@@ -791,7 +915,7 @@ async function showApp(){
   if(currentUser.line){ lineBadge.textContent = 'LINE ' + currentUser.line; lineBadge.classList.remove('hidden'); }
   else { lineBadge.classList.add('hidden'); }
 
-  ['view-tamu','view-supervisor','view-ie','view-linedetail'].forEach(id=>document.getElementById(id).classList.add('hidden'));
+  ['view-tamu','view-supervisor','view-ie','view-linedetail','view-lineskillmatrix'].forEach(id=>document.getElementById(id).classList.add('hidden'));
   loadSupervisors(); // non-blocking -- kartu Supervisor di halaman detail line akan terisi begitu selesai
 
   if(currentUser.role === 'tamu'){
