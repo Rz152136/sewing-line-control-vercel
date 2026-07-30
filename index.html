@@ -567,8 +567,8 @@ function renderLineDetailPage(r){
       <h3 style="margin-bottom:6px;">Detail Proses</h3>
       <div class="tbl-wrap">
         <table>
-          <thead><tr><th>No.</th><th>Nama Proses</th><th>SMV</th><th>Nama Operator/Mesin</th></tr></thead>
-          <tbody id="ldProcessBody"><tr><td colspan="4" style="text-align:center;color:var(--muted);">Memuat...</td></tr></tbody>
+          <thead><tr><th>No.</th><th>Nama Proses</th><th>SMV</th><th>Nama Operator</th><th>Nama Mesin</th></tr></thead>
+          <tbody id="ldProcessBody"><tr><td colspan="5" style="text-align:center;color:var(--muted);">Memuat...</td></tr></tbody>
         </table>
       </div>
       <h3 style="margin-top:18px;margin-bottom:6px;">Total SMV per Operator</h3>
@@ -589,7 +589,7 @@ async function loadLineDetailProcesses(line, style){
   const opBody = document.getElementById('ldOperatorBody');
   if(!body) return;
   if(!style){
-    body.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--muted);">Belum ada style running untuk line ini.</td></tr>';
+    body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted);">Belum ada style running untuk line ini.</td></tr>';
     if(opBody) opBody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--muted);">-</td></tr>';
     return;
   }
@@ -599,7 +599,7 @@ async function loadLineDetailProcesses(line, style){
     const opBodyEl = document.getElementById('ldOperatorBody');
     if(!bodyEl) return; // user sudah pindah halaman
     if(!list.length){
-      bodyEl.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--muted);">Belum ada breakdown proses untuk style ini.</td></tr>';
+      bodyEl.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted);">Belum ada breakdown proses untuk style ini.</td></tr>';
       if(opBodyEl) opBodyEl.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--muted);">-</td></tr>';
       return;
     }
@@ -609,6 +609,7 @@ async function loadLineDetailProcesses(line, style){
         <td>${escapeHtml(p.nama_proses||'-')}</td>
         <td class="num">${fmtNum(p.smv,2)}</td>
         <td>${escapeHtml(p.nama_operator||'-')}</td>
+        <td>${escapeHtml(p.nama_mesin||'-')}</td>
       </tr>`).join('');
     if(opBodyEl){
       const summary = summarizeByOperator(list);
@@ -622,7 +623,7 @@ async function loadLineDetailProcesses(line, style){
   }catch(err){
     const bodyEl = document.getElementById('ldProcessBody');
     const opBodyEl = document.getElementById('ldOperatorBody');
-    if(bodyEl) bodyEl.innerHTML = '<tr><td colspan="4" style="color:var(--red);">Gagal memuat: '+err.message+'</td></tr>';
+    if(bodyEl) bodyEl.innerHTML = '<tr><td colspan="5" style="color:var(--red);">Gagal memuat: '+err.message+'</td></tr>';
     if(opBodyEl) opBodyEl.innerHTML = '<tr><td colspan="3" style="color:var(--red);">Gagal memuat.</td></tr>';
   }
 }
@@ -1444,7 +1445,7 @@ async function renderIeLineConfig(){
     </div>
     <div class="panel">
       <h2>Detail Proses per Line</h2>
-      <p class="sub">Breakdown No. Proses / Nama Proses / SMV / Nama Operator per Style. Copy range dari Excel (kolom sesuai urutan itu), lalu paste di kotak bawah ini — sistem otomatis pisah per kolom &amp; baris. Simpan ulang untuk Line+Style yang sama akan menimpa breakdown lama.</p>
+      <p class="sub">Breakdown No. Proses / Nama Proses / SMV / Nama Operator / Nama Mesin per Style. Copy range dari Excel (kolom sesuai urutan itu), lalu paste di kotak bawah ini — sistem otomatis pisah per kolom &amp; baris. Simpan ulang untuk Line+Style yang sama akan menimpa breakdown lama.</p>
       <div class="field-row">
         <div class="field"><label>Line</label>
           <select id="lpLine">${LINES.map(l=>`<option value="${l}">${l}</option>`).join('')}</select>
@@ -1452,8 +1453,8 @@ async function renderIeLineConfig(){
         <div class="field"><label>Style</label><input type="text" id="lpStyle" placeholder="harus sama dengan Style yang berjalan"></div>
       </div>
       <div class="field">
-        <label>Paste dari Excel (No. Proses, Nama Proses, SMV, Nama Operator/Mesin)</label>
-        <textarea id="lpPaste" rows="6" placeholder="Contoh (paste langsung dari Excel):&#10;1&#9;Jahit Bahu&#9;0.35&#9;Siti&#10;2&#9;Obras Sisi&#9;0.42&#9;Budi"></textarea>
+        <label>Paste dari Excel (No. Proses, Nama Proses, SMV, Nama Operator, Nama Mesin)</label>
+        <textarea id="lpPaste" rows="6" placeholder="Contoh (paste langsung dari Excel):&#10;1&#9;Jahit Bahu&#9;0.35&#9;Siti&#9;Overlock&#10;2&#9;Obras Sisi&#9;0.42&#9;Budi&#9;Obras 5 Benang"></textarea>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
         <button type="button" class="btn ghost sm" id="lpParseBtn">Parse &amp; Preview</button>
@@ -1463,15 +1464,15 @@ async function renderIeLineConfig(){
       <p id="lpParseError" style="color:var(--red);font-size:12.5px;min-height:1em;"></p>
       <div class="tbl-wrap" id="lpPreviewWrap" style="display:none;">
         <table>
-          <thead><tr><th>No.</th><th>Nama Proses</th><th>SMV</th><th>Nama Operator/Mesin</th></tr></thead>
+          <thead><tr><th>No.</th><th>Nama Proses</th><th>SMV</th><th>Nama Operator</th><th>Nama Mesin</th></tr></thead>
           <tbody id="lpPreviewBody"></tbody>
         </table>
       </div>
       <h3 style="margin-top:22px;">Breakdown Tersimpan</h3>
       <div class="tbl-wrap">
         <table>
-          <thead><tr><th>No.</th><th>Nama Proses</th><th>SMV</th><th>Nama Operator/Mesin</th></tr></thead>
-          <tbody id="lpSavedBody"><tr><td colspan="4" style="text-align:center;color:var(--muted);">Pilih Line &amp; Style dulu.</td></tr></tbody>
+          <thead><tr><th>No.</th><th>Nama Proses</th><th>SMV</th><th>Nama Operator</th><th>Nama Mesin</th></tr></thead>
+          <tbody id="lpSavedBody"><tr><td colspan="5" style="text-align:center;color:var(--muted);">Pilih Line &amp; Style dulu.</td></tr></tbody>
         </table>
       </div>
       <h3 style="margin-top:22px;">Total SMV per Operator</h3>
@@ -1602,6 +1603,7 @@ async function renderIeLineConfig(){
         namaProses: cols[1] || '',
         smv: cols[2] || '',
         namaOperator: cols[3] || '',
+        namaMesin: cols[4] || '',
       }));
   }
 
@@ -1618,6 +1620,7 @@ async function renderIeLineConfig(){
         <td>${escapeHtml(r.namaProses)}</td>
         <td class="num">${escapeHtml(r.smv)}</td>
         <td>${escapeHtml(r.namaOperator)}</td>
+        <td>${escapeHtml(r.namaMesin)}</td>
       </tr>`).join('');
   }
 
@@ -1627,15 +1630,15 @@ async function renderIeLineConfig(){
     const line = document.getElementById('lpLine').value;
     const style = document.getElementById('lpStyle').value.trim();
     if(!style){
-      body.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--muted);">Isi Style dulu untuk lihat breakdown tersimpan.</td></tr>';
+      body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted);">Isi Style dulu untuk lihat breakdown tersimpan.</td></tr>';
       opBody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--muted);">-</td></tr>';
       return;
     }
-    body.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--muted);">Memuat...</td></tr>';
+    body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted);">Memuat...</td></tr>';
     try{
       const list = await apiGet('/line-processes?line='+encodeURIComponent(line)+'&style='+encodeURIComponent(style));
       if(!list.length){
-        body.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--muted);">Belum ada breakdown tersimpan untuk Line+Style ini.</td></tr>';
+        body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted);">Belum ada breakdown tersimpan untuk Line+Style ini.</td></tr>';
         opBody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--muted);">-</td></tr>';
         return;
       }
@@ -1645,6 +1648,7 @@ async function renderIeLineConfig(){
           <td>${escapeHtml(p.nama_proses||'-')}</td>
           <td class="num">${fmtNum(p.smv,2)}</td>
           <td>${escapeHtml(p.nama_operator||'-')}</td>
+          <td>${escapeHtml(p.nama_mesin||'-')}</td>
         </tr>`).join('');
       const summary = summarizeByOperator(list);
       opBody.innerHTML = summary.map(s=>`
@@ -1654,7 +1658,7 @@ async function renderIeLineConfig(){
           <td class="num">${fmtNum(s.total,2)}</td>
         </tr>`).join('');
     }catch(err){
-      body.innerHTML = '<tr><td colspan="4" style="color:var(--red);">Gagal memuat: '+err.message+'</td></tr>';
+      body.innerHTML = '<tr><td colspan="5" style="color:var(--red);">Gagal memuat: '+err.message+'</td></tr>';
       opBody.innerHTML = '<tr><td colspan="3" style="color:var(--red);">Gagal memuat.</td></tr>';
     }
   }
