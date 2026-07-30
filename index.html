@@ -1223,7 +1223,7 @@ async function buildDashboardHtml(period){
   // ---- Top 3 Line (papan peringkat efisiensi, Line Normal, harus ada target) ----
   const top3 = normalRows
     .filter(r=>r.eff!==null)
-    .sort((a,b)=>b.eff-a.eff)
+    .sort((a,b)=> b.eff-a.eff || b.outputActual-a.outputActual)
     .slice(0,3);
   const MEDALS = ['&#129351;','&#129352;','&#129353;']; // gold, silver, bronze
   const RANK_LABEL = ['Peringkat 1','Peringkat 2','Peringkat 3'];
