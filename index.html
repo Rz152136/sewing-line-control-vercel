@@ -206,6 +206,39 @@
   #fatalError{display:none;background:var(--red-bg);color:var(--red);font-size:12px;padding:10px 12px;border-radius:10px;margin-bottom:14px;word-break:break-word;}
   #appRoot{display:none;}
   .hidden{display:none !important;}
+
+  /* ---- Skill Matrix ---- */
+  .sm-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:18px;}
+  .sm-stat{border-radius:14px;padding:14px 15px;border:1px solid var(--line);background:var(--panel);}
+  .sm-stat .n{font-family:var(--disp);font-weight:800;font-size:24px;line-height:1;margin-bottom:4px;}
+  .sm-stat .l{font-size:11.5px;color:var(--muted);font-weight:600;}
+  .sm-stat.grade-a{background:var(--green-bg);border-color:transparent;} .sm-stat.grade-a .n{color:var(--green);}
+  .sm-stat.grade-b{background:var(--watch-bg);border-color:transparent;} .sm-stat.grade-b .n{color:var(--amber-ink);}
+  .sm-stat.grade-c{background:var(--red-bg);border-color:transparent;} .sm-stat.grade-c .n{color:var(--red);}
+  .sm-toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:16px;}
+  .sm-toolbar .field{min-width:160px;}
+  .sm-legend{display:flex;gap:16px;flex-wrap:wrap;font-size:11.5px;color:var(--muted);margin-bottom:16px;}
+  .sm-legend span{display:inline-flex;align-items:center;gap:6px;}
+  .sm-legend i{width:10px;height:10px;border-radius:3px;display:inline-block;}
+  .sm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;}
+  .sm-card{border-radius:16px;padding:15px 16px;border:1px solid var(--line);background:var(--panel);position:relative;overflow:hidden;transition:box-shadow .18s ease, transform .18s ease;}
+  .sm-card:hover{box-shadow:0 10px 26px -14px rgba(21,42,33,.28);transform:translateY(-2px);}
+  .sm-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:5px;}
+  .sm-card.grade-a::before{background:var(--green);} .sm-card.grade-b::before{background:var(--amber);} .sm-card.grade-c::before{background:var(--red);}
+  .sm-card .top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:10px;}
+  .sm-card .name{font-weight:700;font-size:14px;color:var(--ink);word-break:break-word;}
+  .sm-badge{font-family:var(--disp);font-weight:800;font-size:12px;border-radius:999px;padding:3px 10px;flex-shrink:0;}
+  .sm-badge.grade-a{background:var(--green-bg);color:var(--green);} .sm-badge.grade-b{background:var(--watch-bg);color:var(--amber-ink);} .sm-badge.grade-c{background:var(--red-bg);color:var(--red);}
+  .sm-card .smv-row{display:flex;align-items:baseline;gap:5px;margin-bottom:8px;}
+  .sm-card .smv-val{font-family:var(--disp);font-weight:800;font-size:21px;color:var(--ink);}
+  .sm-card .smv-unit{font-size:11px;color:var(--muted);}
+  .sm-bar-track{height:7px;border-radius:999px;background:var(--panel2);overflow:hidden;margin-bottom:10px;}
+  .sm-bar-fill{height:100%;border-radius:999px;}
+  .sm-bar-fill.grade-a{background:var(--green);} .sm-bar-fill.grade-b{background:var(--amber);} .sm-bar-fill.grade-c{background:var(--red);}
+  .sm-card .meta{font-size:11.5px;color:var(--muted);display:flex;flex-direction:column;gap:3px;}
+  .sm-card .chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px;}
+  .sm-chip{font-size:10.5px;font-weight:600;background:var(--panel2);color:var(--muted);border-radius:999px;padding:2px 8px;}
+  .sm-empty{text-align:center;color:var(--muted);padding:40px 0;font-size:13px;}
 </style>
 </head>
 <body>
@@ -260,11 +293,13 @@
     <nav class="subnav" id="ieSubnav">
       <button data-sub="dashboard" class="active">Dashboard</button>
       <button data-sub="lineconfig">Variabel Line</button>
+      <button data-sub="skillmatrix">Skill Matrix</button>
       <button data-sub="data">Data Produksi</button>
       <button data-sub="users">Kelola User</button>
     </nav>
     <div id="ie-dashboard"></div>
     <div id="ie-lineconfig" class="hidden"></div>
+    <div id="ie-skillmatrix" class="hidden"></div>
     <div id="ie-data" class="hidden"></div>
     <div id="ie-users" class="hidden"></div>
   </section>
@@ -1334,21 +1369,29 @@ function initIeView(){
       if(e.target.tagName !== 'BUTTON') return;
       const sub = e.target.dataset.sub;
       document.querySelectorAll('#ieSubnav button').forEach(b=>b.classList.toggle('active', b===e.target));
-      ['dashboard','lineconfig','data','users'].forEach(s=>{
+      ['dashboard','lineconfig','skillmatrix','data','users'].forEach(s=>{
         document.getElementById('ie-'+s).classList.toggle('hidden', s!==sub);
       });
       if(sub==='dashboard') renderIeDashboard();
       if(sub==='lineconfig') renderIeLineConfig();
+      if(sub==='skillmatrix') renderIeSkillMatrix();
       if(sub==='data') renderIeData();
       if(sub==='users') renderIeUsers();
     });
   }
   // reset ke tab dashboard tiap kali masuk/login ulang
   document.querySelectorAll('#ieSubnav button').forEach(b=>b.classList.toggle('active', b.dataset.sub==='dashboard'));
-  ['dashboard','lineconfig','data','users'].forEach(s=>{
+  ['dashboard','lineconfig','skillmatrix','data','users'].forEach(s=>{
     document.getElementById('ie-'+s).classList.toggle('hidden', s!=='dashboard');
   });
   renderIeDashboard();
+}
+
+// helper dipanggil dari luar (mis. tombol di panel lain) untuk pindah ke tab
+// tertentu di dalam Tampilan IE, sekaligus render halamannya.
+function goToIeSub(sub){
+  const btn = document.querySelector('#ieSubnav button[data-sub="'+sub+'"]');
+  if(btn) btn.click();
 }
 
 let iePeriod = 'daily';
@@ -1444,7 +1487,10 @@ async function renderIeLineConfig(){
       </div>
     </div>
     <div class="panel">
-      <h2>Detail Proses per Line</h2>
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;">
+        <h2 style="margin:0;">Detail Proses per Line</h2>
+        <button type="button" class="btn ghost sm" onclick="goToIeSub('skillmatrix')">Lihat Skill Matrix →</button>
+      </div>
       <p class="sub">Breakdown No. Proses / Nama Proses / SMV / Nama Operator / Nama Mesin per Style. Copy range dari Excel (kolom sesuai urutan itu), lalu paste di kotak bawah ini — sistem otomatis pisah per kolom &amp; baris. Simpan ulang untuk Line+Style yang sama akan menimpa breakdown lama.</p>
       <div class="field-row">
         <div class="field"><label>Line</label>
@@ -1707,6 +1753,119 @@ async function renderIeLineConfig(){
 
   document.getElementById('lpLine').addEventListener('change', loadLpSaved);
   document.getElementById('lpStyle').addEventListener('change', loadLpSaved);
+}
+
+// ---------- Skill Matrix (grade operator dari total SMV proses yg dikuasai) ----------
+async function renderIeSkillMatrix(){
+  const root = document.getElementById('ie-skillmatrix');
+  root.innerHTML = `
+    <div class="panel">
+      <h2>Skill Matrix Operator</h2>
+      <p class="sub">Grade dihitung dari total SMV seluruh proses yang dipegang tiap operator (dijumlah dari data Detail Proses per Line). Grade A: SMV &gt; 1 menit &middot; Grade B: 0,6–1 menit &middot; Grade C: di bawah 0,6 menit.</p>
+      <div class="sm-toolbar">
+        <div class="field"><label>Filter Line</label>
+          <select id="smLine"><option value="">Semua Line</option>${LINES.map(l=>`<option value="${l}">${l}</option>`).join('')}</select>
+        </div>
+        <div class="field"><label>Cari Nama Operator</label><input type="text" id="smSearch" placeholder="cth: Siti"></div>
+        <button type="button" class="btn ghost sm" id="smRefreshBtn" style="align-self:flex-end;">Muat Ulang</button>
+      </div>
+      <div class="sm-legend">
+        <span><i style="background:var(--green);"></i> Grade A — SMV &gt; 1 menit</span>
+        <span><i style="background:var(--amber);"></i> Grade B — SMV 0,6–1 menit</span>
+        <span><i style="background:var(--red);"></i> Grade C — SMV &lt; 0,6 menit</span>
+      </div>
+      <div class="sm-stats" id="smStats"></div>
+      <div class="sm-grid" id="smGrid"><div class="sm-empty">Memuat...</div></div>
+    </div>
+  `;
+
+  let smAllRows = [];
+
+  function gradeOf(total){
+    if(total > 1) return 'a';
+    if(total >= 0.6) return 'b';
+    return 'c';
+  }
+  function gradeLabel(g){ return g==='a' ? 'Grade A' : g==='b' ? 'Grade B' : 'Grade C'; }
+
+  function computeOperators(rows){
+    const map = {};
+    rows.forEach(p=>{
+      const name = (p.nama_operator||'').trim();
+      if(!name) return; // baris tanpa nama operator dilewati
+      const smv = Number(p.smv)||0;
+      if(!map[name]) map[name] = { name, total:0, count:0, lines:new Set(), mesin:new Set() };
+      map[name].total += smv;
+      map[name].count += 1;
+      if(p.line) map[name].lines.add(p.line);
+      if(p.nama_mesin) map[name].mesin.add(p.nama_mesin);
+    });
+    return Object.values(map).sort((a,b)=>b.total-a.total);
+  }
+
+  function renderStats(operators){
+    const counts = { a:0, b:0, c:0 };
+    operators.forEach(o=>counts[gradeOf(o.total)]++);
+    document.getElementById('smStats').innerHTML = `
+      <div class="sm-stat"><div class="n">${operators.length}</div><div class="l">Total Operator</div></div>
+      <div class="sm-stat grade-a"><div class="n">${counts.a}</div><div class="l">Grade A</div></div>
+      <div class="sm-stat grade-b"><div class="n">${counts.b}</div><div class="l">Grade B</div></div>
+      <div class="sm-stat grade-c"><div class="n">${counts.c}</div><div class="l">Grade C</div></div>
+    `;
+  }
+
+  function renderGrid(operators){
+    const grid = document.getElementById('smGrid');
+    if(!operators.length){ grid.innerHTML = '<div class="sm-empty">Belum ada data operator untuk filter ini.</div>'; return; }
+    const maxTotal = Math.max(1.4, ...operators.map(o=>o.total));
+    grid.innerHTML = operators.map(o=>{
+      const g = gradeOf(o.total);
+      const pct = Math.min(100, (o.total / maxTotal) * 100);
+      const lineChips = Array.from(o.lines).sort().map(l=>`<span class="sm-chip">Line ${escapeHtml(l)}</span>`).join('');
+      return `
+        <div class="sm-card grade-${g}">
+          <div class="top">
+            <div class="name">${escapeHtml(o.name)}</div>
+            <div class="sm-badge grade-${g}">${gradeLabel(g)}</div>
+          </div>
+          <div class="smv-row"><span class="smv-val">${fmtNum(o.total,2)}</span><span class="smv-unit">menit SMV</span></div>
+          <div class="sm-bar-track"><div class="sm-bar-fill grade-${g}" style="width:${pct}%;"></div></div>
+          <div class="meta">
+            <span>${o.count} proses dikuasai</span>
+            ${o.mesin.size ? `<span>${o.mesin.size} jenis mesin</span>` : ''}
+          </div>
+          ${lineChips ? `<div class="chips">${lineChips}</div>` : ''}
+        </div>`;
+    }).join('');
+  }
+
+  function applyFilters(){
+    const search = document.getElementById('smSearch').value.trim().toLowerCase();
+    let operators = computeOperators(smAllRows);
+    if(search) operators = operators.filter(o=>o.name.toLowerCase().includes(search));
+    renderStats(operators);
+    renderGrid(operators);
+  }
+
+  async function loadData(){
+    const grid = document.getElementById('smGrid');
+    grid.innerHTML = '<div class="sm-empty">Memuat...</div>';
+    document.getElementById('smStats').innerHTML = '';
+    const line = document.getElementById('smLine').value;
+    try{
+      const qs = line ? ('?line='+encodeURIComponent(line)) : '';
+      smAllRows = await apiGet('/line-processes'+qs);
+      applyFilters();
+    }catch(err){
+      grid.innerHTML = '<div class="sm-empty" style="color:var(--red);">Gagal memuat: '+err.message+'</div>';
+    }
+  }
+
+  document.getElementById('smLine').addEventListener('change', loadData);
+  document.getElementById('smSearch').addEventListener('input', applyFilters);
+  document.getElementById('smRefreshBtn').addEventListener('click', loadData);
+
+  loadData();
 }
 
 // ---------- Data Produksi (oversight semua line, + export) ----------
