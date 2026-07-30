@@ -245,15 +245,15 @@
 
   /* ---- Line Skill Matrix (grid ala matrix kompetensi) ---- */
   .smx-toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px;}
-  .smx-wrap{overflow:auto;border:1px solid var(--line);border-radius:12px;max-height:72vh;}
-  .smx-table{border-collapse:separate;border-spacing:0;font-size:11.5px;background:var(--panel);}
+  .smx-wrap{overflow:auto;border:1px solid var(--line);border-radius:12px;max-height:75vh;}
+  .smx-table{border-collapse:separate;border-spacing:0;font-size:12.5px;background:var(--panel);}
   .smx-table th,.smx-table td{border-right:1px solid var(--line);border-bottom:1px solid var(--line);}
-  .smx-table thead th{background:var(--panel);position:sticky;top:0;z-index:3;height:150px;vertical-align:bottom;padding:0;min-width:30px;max-width:30px;}
-  .smx-colhead-inner{writing-mode:vertical-rl;transform:rotate(180deg);white-space:nowrap;padding:6px 4px 8px;font-size:10.5px;font-weight:700;color:var(--ink);display:inline-block;max-height:145px;overflow:hidden;text-overflow:ellipsis;}
-  .smx-table th.smx-corner{position:sticky;left:0;top:0;z-index:4;min-width:170px;max-width:170px;background:var(--panel);}
-  .smx-table td.smx-rowhead{position:sticky;left:0;z-index:2;background:var(--panel);text-align:left;padding:6px 10px;white-space:nowrap;font-weight:600;min-width:170px;max-width:170px;overflow:hidden;text-overflow:ellipsis;}
+  .smx-table thead th{background:var(--panel);position:sticky;top:0;z-index:3;height:210px;vertical-align:bottom;padding:0;min-width:36px;max-width:36px;}
+  .smx-colhead-inner{writing-mode:vertical-rl;transform:rotate(180deg);white-space:nowrap;padding:8px 5px 10px;font-size:13px;font-weight:700;color:var(--ink);font-family:var(--body);display:inline-block;}
+  .smx-table th.smx-corner{position:sticky;left:0;top:0;z-index:4;min-width:190px;max-width:190px;background:var(--panel);}
+  .smx-table td.smx-rowhead{position:sticky;left:0;z-index:2;background:var(--panel);text-align:left;padding:7px 12px;white-space:nowrap;font-weight:700;font-size:13px;min-width:190px;max-width:190px;overflow:hidden;text-overflow:ellipsis;}
   .smx-table tbody tr:nth-child(even) td.smx-rowhead{background:var(--panel2);}
-  .smx-cell{width:30px;min-width:30px;height:30px;text-align:center;padding:0;}
+  .smx-cell{width:36px;min-width:36px;height:34px;text-align:center;padding:0;}
   .smx-cell.grade-a{background:var(--green);}
   .smx-cell.grade-b{background:var(--amber);}
   .smx-cell.grade-c{background:var(--red);}
@@ -495,18 +495,40 @@ function summarizeByOperator(list){
 }
 
 // Export sebuah elemen (mis. tabel skill matrix) jadi file PNG, termasuk
-// bagian yang di luar area scroll (overflow/max-height dilepas sementara
-// selama proses capture, lalu dikembalikan seperti semula).
+// bagian yang di luar area scroll. Sticky header/kolom dinetralkan sementara
+// (posisi sticky sering bikin html2canvas salah render/terpotong), lalu
+// ukuran elemen dipaksa ke ukuran penuh kontennya sebelum di-capture.
 async function exportElementAsImage(elId, filename){
   const el = document.getElementById(elId);
   if(!el) return;
   if(typeof html2canvas !== 'function'){ showToast('Fitur export gambar belum siap, coba lagi sebentar.'); return; }
+
+  // ukur dimensi konten penuh SEBELUM constraint dilepas
+  const fullWidth = el.scrollWidth;
+  const fullHeight = el.scrollHeight;
+
+  const stickyEls = Array.from(el.querySelectorAll('[style*="sticky"], thead th, td.smx-rowhead, th.smx-corner'));
+  const stickyRestore = stickyEls.map(node => ({ node, position: node.style.position }));
+  stickyEls.forEach(node => { node.style.position = 'static'; });
+
   const prevOverflow = el.style.overflow;
   const prevMaxHeight = el.style.maxHeight;
+  const prevWidth = el.style.width;
+  const prevHeight = el.style.height;
   el.style.overflow = 'visible';
   el.style.maxHeight = 'none';
+  el.style.width = fullWidth + 'px';
+  el.style.height = fullHeight + 'px';
+
   try{
-    const canvas = await html2canvas(el, { backgroundColor:'#ffffff', scale:2 });
+    const canvas = await html2canvas(el, {
+      backgroundColor: '#ffffff',
+      scale: 2,
+      width: fullWidth,
+      height: fullHeight,
+      windowWidth: fullWidth,
+      windowHeight: fullHeight,
+    });
     const link = document.createElement('a');
     link.download = filename;
     link.href = canvas.toDataURL('image/png');
@@ -516,6 +538,9 @@ async function exportElementAsImage(elId, filename){
   }finally{
     el.style.overflow = prevOverflow;
     el.style.maxHeight = prevMaxHeight;
+    el.style.width = prevWidth;
+    el.style.height = prevHeight;
+    stickyRestore.forEach(({node, position})=>{ node.style.position = position; });
   }
 }
 // Cache nama+foto Supervisor per line, diisi oleh loadSupervisors() setelah login.
