@@ -253,9 +253,10 @@
   .smx-table td.smx-rowhead{text-align:left;padding:7px 12px;white-space:nowrap;font-weight:700;font-size:13px;width:190px;min-width:190px;max-width:190px;overflow:hidden;text-overflow:ellipsis;background:var(--panel);}
   .smx-table tbody tr:nth-child(even) td.smx-rowhead{background:var(--panel2);}
   .smx-cell{width:64px;min-width:64px;height:34px;text-align:center;padding:0;}
-  .smx-cell.grade-a{background:var(--green);}
-  .smx-cell.grade-b{background:var(--amber);}
-  .smx-cell.grade-c{background:var(--red);}
+  .smx-dot{display:inline-block;width:16px;height:16px;border-radius:50%;}
+  .smx-cell.grade-a .smx-dot{background:var(--green);}
+  .smx-cell.grade-b .smx-dot{background:var(--amber);}
+  .smx-cell.grade-c .smx-dot{background:var(--red);}
   .smx-empty-cell{color:var(--faint);}
 </style>
 </head>
@@ -823,7 +824,7 @@ async function renderLineSkillMatrix(line){
         if(!c) return '<td class="smx-cell smx-empty-cell"></td>';
         const avg = c.sum / c.count;
         const g = smxGradeOf(avg);
-        return `<td class="smx-cell grade-${g}" title="${escapeHtml(proc)} — ${fmtNum(avg,2)} menit"></td>`;
+        return `<td class="smx-cell grade-${g}" title="${escapeHtml(proc)} — ${fmtNum(avg,2)} menit"><span class="smx-dot"></span></td>`;
       }).join('');
       return `<tr><td class="smx-rowhead">${escapeHtml(op)}</td>${cells}</tr>`;
     }).join('');
