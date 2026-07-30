@@ -419,6 +419,17 @@ function periodRangeText(dates, period){
 function escapeHtml(s){
   return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
+function summarizeByOperator(list){
+  const map = {};
+  (list||[]).forEach(p=>{
+    const name = (p.nama_operator || p.namaOperator || '').trim() || '(Tanpa Nama)';
+    const smv = Number(p.smv) || 0;
+    if(!map[name]) map[name] = { count:0, total:0 };
+    map[name].count += 1;
+    map[name].total += smv;
+  });
+  return Object.keys(map).sort((a,b)=>a.localeCompare(b)).map(name=>({ name, ...map[name] }));
+}
 // Cache nama+foto Supervisor per line, diisi oleh loadSupervisors() setelah login.
 let __supervisorsByLine = {};
 async function loadSupervisors(){
@@ -551,7 +562,69 @@ function renderLineDetailPage(r){
       ${confidentialRows}
       ${r.notes ? row('Catatan', escapeHtml(r.notes)) : ''}
     </div>
+
+    <div class="panel" style="padding:16px 18px;margin-bottom:0;margin-top:14px;" id="ldProcessPanel">
+      <h3 style="margin-bottom:6px;">Detail Proses</h3>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>No.</th><th>Nama Proses</th><th>SMV</th><th>Nama Operator/Mesin</th></tr></thead>
+          <tbody id="ldProcessBody"><tr><td colspan="4" style="text-align:center;color:var(--muted);">Memuat...</td></tr></tbody>
+        </table>
+      </div>
+      <h3 style="margin-top:18px;margin-bottom:6px;">Total SMV per Operator</h3>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Nama Operator/Mesin</th><th>Jumlah Proses</th><th>Total SMV</th></tr></thead>
+          <tbody id="ldOperatorBody"><tr><td colspan="3" style="text-align:center;color:var(--muted);">-</td></tr></tbody>
+        </table>
+      </div>
+    </div>
   `;
+
+  loadLineDetailProcesses(r.line, r.style);
+}
+
+async function loadLineDetailProcesses(line, style){
+  const body = document.getElementById('ldProcessBody');
+  const opBody = document.getElementById('ldOperatorBody');
+  if(!body) return;
+  if(!style){
+    body.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--muted);">Belum ada style running untuk line ini.</td></tr>';
+    if(opBody) opBody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--muted);">-</td></tr>';
+    return;
+  }
+  try{
+    const list = await apiGet('/line-processes?line='+encodeURIComponent(line)+'&style='+encodeURIComponent(style));
+    const bodyEl = document.getElementById('ldProcessBody');
+    const opBodyEl = document.getElementById('ldOperatorBody');
+    if(!bodyEl) return; // user sudah pindah halaman
+    if(!list.length){
+      bodyEl.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--muted);">Belum ada breakdown proses untuk style ini.</td></tr>';
+      if(opBodyEl) opBodyEl.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--muted);">-</td></tr>';
+      return;
+    }
+    bodyEl.innerHTML = list.map(p=>`
+      <tr>
+        <td class="num">${fmtNum(p.no_proses)}</td>
+        <td>${escapeHtml(p.nama_proses||'-')}</td>
+        <td class="num">${fmtNum(p.smv,2)}</td>
+        <td>${escapeHtml(p.nama_operator||'-')}</td>
+      </tr>`).join('');
+    if(opBodyEl){
+      const summary = summarizeByOperator(list);
+      opBodyEl.innerHTML = summary.map(s=>`
+        <tr>
+          <td>${escapeHtml(s.name)}</td>
+          <td class="num">${fmtNum(s.count)}</td>
+          <td class="num">${fmtNum(s.total,2)}</td>
+        </tr>`).join('');
+    }
+  }catch(err){
+    const bodyEl = document.getElementById('ldProcessBody');
+    const opBodyEl = document.getElementById('ldOperatorBody');
+    if(bodyEl) bodyEl.innerHTML = '<tr><td colspan="4" style="color:var(--red);">Gagal memuat: '+err.message+'</td></tr>';
+    if(opBodyEl) opBodyEl.innerHTML = '<tr><td colspan="3" style="color:var(--red);">Gagal memuat.</td></tr>';
+  }
 }
 document.addEventListener('keydown', (e)=>{ if(e.key==='Escape' && !document.getElementById('view-linedetail').classList.contains('hidden')) closeLineDetail(); });
 
@@ -1369,6 +1442,46 @@ async function renderIeLineConfig(){
         </table>
       </div>
     </div>
+    <div class="panel">
+      <h2>Detail Proses per Line</h2>
+      <p class="sub">Breakdown No. Proses / Nama Proses / SMV / Nama Operator per Style. Copy range dari Excel (kolom sesuai urutan itu), lalu paste di kotak bawah ini — sistem otomatis pisah per kolom &amp; baris. Simpan ulang untuk Line+Style yang sama akan menimpa breakdown lama.</p>
+      <div class="field-row">
+        <div class="field"><label>Line</label>
+          <select id="lpLine">${LINES.map(l=>`<option value="${l}">${l}</option>`).join('')}</select>
+        </div>
+        <div class="field"><label>Style</label><input type="text" id="lpStyle" placeholder="harus sama dengan Style yang berjalan"></div>
+      </div>
+      <div class="field">
+        <label>Paste dari Excel (No. Proses, Nama Proses, SMV, Nama Operator/Mesin)</label>
+        <textarea id="lpPaste" rows="6" placeholder="Contoh (paste langsung dari Excel):&#10;1&#9;Jahit Bahu&#9;0.35&#9;Siti&#10;2&#9;Obras Sisi&#9;0.42&#9;Budi"></textarea>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
+        <button type="button" class="btn ghost sm" id="lpParseBtn">Parse &amp; Preview</button>
+        <button type="button" class="btn primary sm" id="lpSaveBtn" disabled>Simpan Semua</button>
+        <button type="button" class="btn danger sm" id="lpClearBtn">Hapus Semua (Line+Style ini)</button>
+      </div>
+      <p id="lpParseError" style="color:var(--red);font-size:12.5px;min-height:1em;"></p>
+      <div class="tbl-wrap" id="lpPreviewWrap" style="display:none;">
+        <table>
+          <thead><tr><th>No.</th><th>Nama Proses</th><th>SMV</th><th>Nama Operator/Mesin</th></tr></thead>
+          <tbody id="lpPreviewBody"></tbody>
+        </table>
+      </div>
+      <h3 style="margin-top:22px;">Breakdown Tersimpan</h3>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>No.</th><th>Nama Proses</th><th>SMV</th><th>Nama Operator/Mesin</th></tr></thead>
+          <tbody id="lpSavedBody"><tr><td colspan="4" style="text-align:center;color:var(--muted);">Pilih Line &amp; Style dulu.</td></tr></tbody>
+        </table>
+      </div>
+      <h3 style="margin-top:22px;">Total SMV per Operator</h3>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Nama Operator/Mesin</th><th>Jumlah Proses</th><th>Total SMV</th></tr></thead>
+          <tbody id="lpOperatorBody"><tr><td colspan="3" style="text-align:center;color:var(--muted);">-</td></tr></tbody>
+        </table>
+      </div>
+    </div>
   `;
 
   let lcCache = [];
@@ -1474,6 +1587,122 @@ async function renderIeLineConfig(){
   })();
 
   refreshTable();
+
+  // ---- Detail Proses per Line (paste dari Excel) ----
+  let lpParsedRows = [];
+
+  function parseExcelPaste(text){
+    return text.split(/\r\n|\n|\r/)
+      .map(line => line.trim())
+      .filter(line => line.length > 0)
+      .map(line => line.split('\t').map(c => c.trim()))
+      .filter(cols => cols.length > 1 || cols[0])
+      .map(cols => ({
+        noProses: cols[0] || '',
+        namaProses: cols[1] || '',
+        smv: cols[2] || '',
+        namaOperator: cols[3] || '',
+      }));
+  }
+
+  function renderLpPreview(rows){
+    const wrap = document.getElementById('lpPreviewWrap');
+    const body = document.getElementById('lpPreviewBody');
+    const saveBtn = document.getElementById('lpSaveBtn');
+    if(!rows.length){ wrap.style.display = 'none'; saveBtn.disabled = true; return; }
+    wrap.style.display = '';
+    saveBtn.disabled = false;
+    body.innerHTML = rows.map((r,i)=>`
+      <tr>
+        <td class="num">${escapeHtml(r.noProses)}</td>
+        <td>${escapeHtml(r.namaProses)}</td>
+        <td class="num">${escapeHtml(r.smv)}</td>
+        <td>${escapeHtml(r.namaOperator)}</td>
+      </tr>`).join('');
+  }
+
+  async function loadLpSaved(){
+    const body = document.getElementById('lpSavedBody');
+    const opBody = document.getElementById('lpOperatorBody');
+    const line = document.getElementById('lpLine').value;
+    const style = document.getElementById('lpStyle').value.trim();
+    if(!style){
+      body.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--muted);">Isi Style dulu untuk lihat breakdown tersimpan.</td></tr>';
+      opBody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--muted);">-</td></tr>';
+      return;
+    }
+    body.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--muted);">Memuat...</td></tr>';
+    try{
+      const list = await apiGet('/line-processes?line='+encodeURIComponent(line)+'&style='+encodeURIComponent(style));
+      if(!list.length){
+        body.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--muted);">Belum ada breakdown tersimpan untuk Line+Style ini.</td></tr>';
+        opBody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--muted);">-</td></tr>';
+        return;
+      }
+      body.innerHTML = list.map(p=>`
+        <tr>
+          <td class="num">${fmtNum(p.no_proses)}</td>
+          <td>${escapeHtml(p.nama_proses||'-')}</td>
+          <td class="num">${fmtNum(p.smv,2)}</td>
+          <td>${escapeHtml(p.nama_operator||'-')}</td>
+        </tr>`).join('');
+      const summary = summarizeByOperator(list);
+      opBody.innerHTML = summary.map(s=>`
+        <tr>
+          <td>${escapeHtml(s.name)}</td>
+          <td class="num">${fmtNum(s.count)}</td>
+          <td class="num">${fmtNum(s.total,2)}</td>
+        </tr>`).join('');
+    }catch(err){
+      body.innerHTML = '<tr><td colspan="4" style="color:var(--red);">Gagal memuat: '+err.message+'</td></tr>';
+      opBody.innerHTML = '<tr><td colspan="3" style="color:var(--red);">Gagal memuat.</td></tr>';
+    }
+  }
+
+  document.getElementById('lpParseBtn').addEventListener('click', ()=>{
+    const errEl = document.getElementById('lpParseError');
+    errEl.textContent = '';
+    const text = document.getElementById('lpPaste').value;
+    if(!text.trim()){ errEl.textContent = 'Paste data dari Excel dulu.'; renderLpPreview([]); return; }
+    lpParsedRows = parseExcelPaste(text);
+    if(!lpParsedRows.length){ errEl.textContent = 'Tidak ada baris yang bisa dibaca. Pastikan paste langsung dari Excel (antar kolom dipisah Tab).'; }
+    renderLpPreview(lpParsedRows);
+  });
+
+  document.getElementById('lpSaveBtn').addEventListener('click', async ()=>{
+    const errEl = document.getElementById('lpParseError');
+    errEl.textContent = '';
+    const line = document.getElementById('lpLine').value;
+    const style = document.getElementById('lpStyle').value.trim();
+    if(!style){ errEl.textContent = 'Isi Style dulu (harus sama dengan Style yang berjalan di line ini).'; return; }
+    if(!lpParsedRows.length){ errEl.textContent = 'Belum ada data hasil parse. Klik "Parse & Preview" dulu.'; return; }
+    const saveBtn = document.getElementById('lpSaveBtn');
+    saveBtn.disabled = true; saveBtn.textContent = 'Menyimpan...';
+    try{
+      await apiPost('/line-processes', { line, style, rows: lpParsedRows });
+      showToast('Breakdown proses line '+line+' tersimpan ('+lpParsedRows.length+' baris).');
+      document.getElementById('lpPaste').value = '';
+      lpParsedRows = [];
+      renderLpPreview([]);
+      loadLpSaved();
+    }catch(err){ errEl.textContent = 'Gagal: '+err.message; }
+    finally{ saveBtn.disabled = false; saveBtn.textContent = 'Simpan Semua'; }
+  });
+
+  document.getElementById('lpClearBtn').addEventListener('click', async ()=>{
+    const line = document.getElementById('lpLine').value;
+    const style = document.getElementById('lpStyle').value.trim();
+    if(!style){ showToast('Isi Style dulu.'); return; }
+    if(!confirm('Hapus semua breakdown proses untuk Line '+line+' — Style "'+style+'"?')) return;
+    try{
+      await apiDelete('/line-processes?line='+encodeURIComponent(line)+'&style='+encodeURIComponent(style));
+      showToast('Breakdown dihapus.');
+      loadLpSaved();
+    }catch(err){ showToast('Gagal: '+err.message); }
+  });
+
+  document.getElementById('lpLine').addEventListener('change', loadLpSaved);
+  document.getElementById('lpStyle').addEventListener('change', loadLpSaved);
 }
 
 // ---------- Data Produksi (oversight semua line, + export) ----------
