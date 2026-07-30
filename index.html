@@ -248,9 +248,11 @@
   .smx-wrap{overflow:auto;border:1px solid var(--line);border-radius:12px;max-height:75vh;}
   .smx-table{border-collapse:separate;border-spacing:0;font-size:12.5px;background:var(--panel);}
   .smx-table th,.smx-table td{border-right:1px solid var(--line);border-bottom:1px solid var(--line);}
-  .smx-table thead th{background:var(--panel);position:sticky;top:0;z-index:3;height:210px;vertical-align:bottom;padding:0;min-width:36px;max-width:36px;}
-  .smx-colhead-inner{writing-mode:vertical-rl;transform:rotate(180deg);white-space:nowrap;padding:8px 5px 10px;font-size:13px;font-weight:700;color:var(--ink);font-family:var(--body);display:inline-block;}
-  .smx-table th.smx-corner{position:sticky;left:0;top:0;z-index:4;min-width:190px;max-width:190px;background:var(--panel);}
+  .smx-table thead th{background:var(--panel);position:sticky;top:0;z-index:3;min-width:36px;max-width:36px;padding:0;}
+  .smx-table thead th.smx-rotate{height:150px;white-space:nowrap;vertical-align:bottom;position:relative;overflow:visible;}
+  .smx-table thead th.smx-rotate>div{transform:translate(20px,62px) rotate(315deg);width:34px;}
+  .smx-table thead th.smx-rotate>div>span{display:inline-block;padding:3px 0;font-size:12px;font-weight:700;font-family:var(--body);color:var(--ink);white-space:nowrap;}
+  .smx-table th.smx-corner{position:sticky;left:0;top:0;z-index:4;min-width:190px;max-width:190px;background:var(--panel);vertical-align:bottom;padding:7px 12px 10px;}
   .smx-table td.smx-rowhead{position:sticky;left:0;z-index:2;background:var(--panel);text-align:left;padding:7px 12px;white-space:nowrap;font-weight:700;font-size:13px;min-width:190px;max-width:190px;overflow:hidden;text-overflow:ellipsis;}
   .smx-table tbody tr:nth-child(even) td.smx-rowhead{background:var(--panel2);}
   .smx-cell{width:36px;min-width:36px;height:34px;text-align:center;padding:0;}
@@ -823,7 +825,7 @@ async function renderLineSkillMatrix(line){
       return;
     }
 
-    const theadCols = processNames.map(p=>`<th><span class="smx-colhead-inner">${escapeHtml(p)}</span></th>`).join('');
+    const theadCols = processNames.map(p=>`<th class="smx-rotate"><div><span>${escapeHtml(p)}</span></div></th>`).join('');
     const bodyRows = operatorNames.map(op=>{
       const cells = processNames.map(proc=>{
         const key = op + '||' + proc;
