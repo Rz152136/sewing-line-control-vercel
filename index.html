@@ -246,16 +246,13 @@
   /* ---- Line Skill Matrix (grid ala matrix kompetensi) ---- */
   .smx-toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px;}
   .smx-wrap{overflow:auto;border:1px solid var(--line);border-radius:12px;max-height:75vh;}
-  .smx-table{border-collapse:separate;border-spacing:0;font-size:12.5px;background:var(--panel);}
-  .smx-table th,.smx-table td{border-right:1px solid var(--line);border-bottom:1px solid var(--line);}
-  .smx-table thead th{background:var(--panel);position:sticky;top:0;z-index:3;min-width:36px;max-width:36px;padding:0;}
-  .smx-table thead th.smx-rotate{height:150px;white-space:nowrap;vertical-align:bottom;position:relative;overflow:visible;}
-  .smx-table thead th.smx-rotate>div{transform:translate(20px,62px) rotate(315deg);width:34px;}
-  .smx-table thead th.smx-rotate>div>span{display:inline-block;padding:3px 0;font-size:12px;font-weight:700;font-family:var(--body);color:var(--ink);white-space:nowrap;}
-  .smx-table th.smx-corner{position:sticky;left:0;top:0;z-index:4;min-width:190px;max-width:190px;background:var(--panel);vertical-align:bottom;padding:7px 12px 10px;}
-  .smx-table td.smx-rowhead{position:sticky;left:0;z-index:2;background:var(--panel);text-align:left;padding:7px 12px;white-space:nowrap;font-weight:700;font-size:13px;min-width:190px;max-width:190px;overflow:hidden;text-overflow:ellipsis;}
+  .smx-table{border-collapse:collapse;font-size:12.5px;background:var(--panel);}
+  .smx-table th,.smx-table td{border:1px solid var(--line);}
+  .smx-table thead th{background:var(--panel2);vertical-align:bottom;text-align:center;padding:5px 3px;width:64px;min-width:64px;max-width:64px;font-size:10.5px;line-height:1.25;font-weight:700;font-family:var(--body);color:var(--ink);white-space:normal;word-break:break-word;}
+  .smx-table th.smx-corner{text-align:left;padding:6px 12px;width:190px;min-width:190px;max-width:190px;background:var(--panel);vertical-align:bottom;}
+  .smx-table td.smx-rowhead{text-align:left;padding:7px 12px;white-space:nowrap;font-weight:700;font-size:13px;width:190px;min-width:190px;max-width:190px;overflow:hidden;text-overflow:ellipsis;background:var(--panel);}
   .smx-table tbody tr:nth-child(even) td.smx-rowhead{background:var(--panel2);}
-  .smx-cell{width:36px;min-width:36px;height:34px;text-align:center;padding:0;}
+  .smx-cell{width:64px;min-width:64px;height:34px;text-align:center;padding:0;}
   .smx-cell.grade-a{background:var(--green);}
   .smx-cell.grade-b{background:var(--amber);}
   .smx-cell.grade-c{background:var(--red);}
@@ -497,21 +494,15 @@ function summarizeByOperator(list){
 }
 
 // Export sebuah elemen (mis. tabel skill matrix) jadi file PNG, termasuk
-// bagian yang di luar area scroll. Sticky header/kolom dinetralkan sementara
-// (posisi sticky sering bikin html2canvas salah render/terpotong), lalu
-// ukuran elemen dipaksa ke ukuran penuh kontennya sebelum di-capture.
+// bagian yang di luar area scroll (ukuran dipaksa ke ukuran penuh konten
+// sebelum di-capture, lalu dikembalikan seperti semula).
 async function exportElementAsImage(elId, filename){
   const el = document.getElementById(elId);
   if(!el) return;
   if(typeof html2canvas !== 'function'){ showToast('Fitur export gambar belum siap, coba lagi sebentar.'); return; }
 
-  // ukur dimensi konten penuh SEBELUM constraint dilepas
   const fullWidth = el.scrollWidth;
   const fullHeight = el.scrollHeight;
-
-  const stickyEls = Array.from(el.querySelectorAll('[style*="sticky"], thead th, td.smx-rowhead, th.smx-corner'));
-  const stickyRestore = stickyEls.map(node => ({ node, position: node.style.position }));
-  stickyEls.forEach(node => { node.style.position = 'static'; });
 
   const prevOverflow = el.style.overflow;
   const prevMaxHeight = el.style.maxHeight;
@@ -542,7 +533,6 @@ async function exportElementAsImage(elId, filename){
     el.style.maxHeight = prevMaxHeight;
     el.style.width = prevWidth;
     el.style.height = prevHeight;
-    stickyRestore.forEach(({node, position})=>{ node.style.position = position; });
   }
 }
 // Cache nama+foto Supervisor per line, diisi oleh loadSupervisors() setelah login.
@@ -825,7 +815,7 @@ async function renderLineSkillMatrix(line){
       return;
     }
 
-    const theadCols = processNames.map(p=>`<th class="smx-rotate"><div><span>${escapeHtml(p)}</span></div></th>`).join('');
+    const theadCols = processNames.map(p=>`<th>${escapeHtml(p)}</th>`).join('');
     const bodyRows = operatorNames.map(op=>{
       const cells = processNames.map(proc=>{
         const key = op + '||' + proc;
