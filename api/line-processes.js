@@ -69,6 +69,7 @@ module.exports = async (req, res) => {
       nama_proses: String(r.namaProses || '').trim(),
       smv: Number(r.smv) || 0,
       nama_operator: String(r.namaOperator || '').trim(),
+      nama_mesin: String(r.namaMesin || '').trim(),
       updated_by: user.id,
       updated_at: now,
     }));
