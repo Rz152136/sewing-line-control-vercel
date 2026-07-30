@@ -243,6 +243,22 @@
   .sm-chip{font-size:10.5px;font-weight:600;background:var(--panel2);color:var(--muted);border-radius:999px;padding:2px 8px;}
   .sm-empty{text-align:center;color:var(--muted);padding:40px 0;font-size:13px;}
 
+  /* ---- Top 3 Line (papan peringkat efisiensi) ---- */
+  .top3-row{display:flex;gap:14px;align-items:flex-end;justify-content:center;margin:6px 0 26px;flex-wrap:wrap;}
+  .top3-card{flex:1;min-width:150px;max-width:220px;border-radius:18px;padding:20px 16px 18px;text-align:center;position:relative;border:1px solid var(--line);background:var(--panel);box-shadow:0 10px 26px -18px rgba(21,42,33,.25);transition:transform .18s ease;}
+  .top3-card.rank-1{background:linear-gradient(160deg,#fff8e4,#ffe7ab);border-color:#eec468;transform:translateY(-14px);box-shadow:0 18px 36px -16px rgba(198,146,20,.45);z-index:2;}
+  .top3-card.rank-2{background:linear-gradient(160deg,#f5f8f6,#e3ece6);border-color:#c7d3cc;}
+  .top3-card.rank-3{background:linear-gradient(160deg,#fdefe3,#f7dcc4);border-color:#e6b787;}
+  .top3-medal{font-size:32px;line-height:1;margin-bottom:6px;}
+  .top3-rank-label{font-family:var(--disp);font-weight:800;font-size:10.5px;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);margin-bottom:3px;}
+  .top3-line{font-family:var(--disp);font-weight:800;font-size:19px;color:var(--ink);margin-bottom:2px;}
+  .top3-style{font-size:11px;color:var(--muted);margin-bottom:12px;min-height:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .top3-eff{font-family:var(--disp);font-weight:900;font-size:27px;color:var(--ink);line-height:1;}
+  .top3-eff-label{font-size:10px;color:var(--muted);margin:2px 0 10px;text-transform:uppercase;letter-spacing:.4px;}
+  .top3-output{font-size:11.5px;color:var(--muted);border-top:1px dashed var(--line);padding-top:8px;margin-top:2px;}
+  .top3-output b{color:var(--ink);font-family:var(--mono);}
+  @media (max-width:640px){ .top3-card.rank-1{transform:none;} }
+
   /* ---- Line Skill Matrix (grid ala matrix kompetensi) ---- */
   .smx-toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px;}
   .smx-wrap{overflow:auto;border:1px solid var(--line);border-radius:12px;max-height:75vh;}
@@ -650,7 +666,6 @@ function renderLineDetailPage(r){
 
     <div class="ld-grid">
       <div class="ld-stat"><div class="lbl">Output Aktual</div><div class="val">${fmtNum(r.outputActual)}</div></div>
-      <div class="ld-stat"><div class="lbl">Target s.d. Sekarang</div><div class="val">${fmtNum(r.target)}</div></div>
       <div class="ld-stat"><div class="lbl">Target Harian Penuh</div><div class="val">${fmtNum(r.targetFull)}</div></div>
       <div class="ld-stat"><div class="lbl">Hadir / Absen</div><div class="val">${fmtNum(r.present)}/${fmtNum(r.absent)}</div></div>
     </div>
@@ -795,6 +810,7 @@ async function renderLineSkillMatrix(line){
     const operatorNames = [];
     const operatorSeen = new Set();
     const cellMap = {}; // key: operator||proses -> {sum, count}
+    const processSmvMap = {}; // proses -> {sum, count} -- dipakai buat urutan kolom
 
     rows.forEach(p=>{
       const proc = (p.nama_proses||'').trim();
@@ -806,9 +822,17 @@ async function renderLineSkillMatrix(line){
       if(!cellMap[key]) cellMap[key] = { sum:0, count:0 };
       cellMap[key].sum += Number(p.smv) || 0;
       cellMap[key].count += 1;
+      if(!processSmvMap[proc]) processSmvMap[proc] = { sum:0, count:0 };
+      processSmvMap[proc].sum += Number(p.smv) || 0;
+      processSmvMap[proc].count += 1;
     });
 
-    processNames.sort((a,b)=>a.localeCompare(b));
+    // Kolom diurutkan dari SMV rata-rata proses terendah ke tertinggi (kiri ke kanan).
+    processNames.sort((a,b)=>{
+      const smvA = processSmvMap[a].sum / processSmvMap[a].count;
+      const smvB = processSmvMap[b].sum / processSmvMap[b].count;
+      return smvA - smvB;
+    });
     operatorNames.sort((a,b)=>a.localeCompare(b));
 
     if(!processNames.length || !operatorNames.length){
@@ -1196,13 +1220,39 @@ async function buildDashboardHtml(period){
       ${kpiCard({icon:'cog',tint:'var(--panel3)',color:'var(--accent)',label:'Total Mesin Digunakan',value:fmtNum(totalMesin),unit:'mesin',sub:'Jumlah mesin aktual · Line Normal'})}
       ${kpiCard({icon:'gauge',tint:'var(--panel3)',color:'var(--accent)',label:'MC Shift',value:fmtNum(totalMcShift8h,1),unit:'mesin-shift',sub:'Jumlah Mesin ÷ 8 × 7 · Line Normal'})}` : '';
 
+  // ---- Top 3 Line (papan peringkat efisiensi, Line Normal, harus ada target) ----
+  const top3 = normalRows
+    .filter(r=>r.eff!==null)
+    .sort((a,b)=>b.eff-a.eff)
+    .slice(0,3);
+  const MEDALS = ['&#129351;','&#129352;','&#129353;']; // gold, silver, bronze
+  const RANK_LABEL = ['Peringkat 1','Peringkat 2','Peringkat 3'];
+  // urutan tampil ala podium: 2 - 1 - 3
+  const podiumOrder = top3.length===3 ? [1,0,2] : top3.map((_,i)=>i);
+  const top3Html = !top3.length ? `<p class="sub" style="text-align:center;padding:10px 0 22px;">Belum ada data efisiensi yang cukup untuk menentukan Top 3 Line.</p>` : `
+    <div class="top3-row">
+      ${podiumOrder.map(i=>{
+        const r = top3[i];
+        if(!r) return '';
+        return `
+        <div class="top3-card rank-${i+1}">
+          <div class="top3-medal">${MEDALS[i]}</div>
+          <div class="top3-rank-label">${RANK_LABEL[i]}</div>
+          <div class="top3-line">Line ${escapeHtml(r.line)}</div>
+          <div class="top3-style">${escapeHtml(r.style || 'Belum ada style running')}</div>
+          <div class="top3-eff">${r.eff}%</div>
+          <div class="top3-eff-label">Efisiensi</div>
+          <div class="top3-output">Output Aktual: <b>${fmtNum(r.outputActual)}</b></div>
+        </div>`;
+      }).join('')}
+    </div>`;
+
   const html = `
     ${periodToggleHtml(period, 'dash')}
     <p class="sub" style="margin-top:-8px;">${rangeText}</p>
 
     <div class="kpis">
       ${kpiCard({icon:'box',tint:'var(--accent-soft)',color:'var(--accent)',label:'Output Aktual',value:fmtNum(totalOutputActual),unit:'unit',sub:'Line Normal · '+pNoun})}
-      ${kpiCard({icon:'target',tint:'var(--panel3)',color:'var(--accent)',label:'Target s.d. Jam Ini',value:fmtNum(totalTarget),unit:'unit',sub:'Prorata jam berjalan · Line Normal'})}
       ${kpiCard({icon:'target',tint:'var(--panel3)',color:'var(--accent)',label:'Target Harian Penuh',value:fmtNum(totalTargetFull),unit:'unit',sub:'Target 1 hari penuh · Line Normal'})}
       ${kpiCard({icon:'shield',tint: avgEff===null? 'var(--panel3)' : avgEff>=75?'var(--green-bg)':avgEff>=55?'var(--watch-bg)':'var(--red-bg)', color: avgEff===null?'var(--muted)':avgEff>=75?'var(--green)':avgEff>=55?'var(--amber-ink)':'var(--red)', label:'Rata-rata Efisiensi', value:avgEff===null?'-':avgEff+'%', sub:'Target ≥ 75% · Line Normal'})}
       ${kpiCard({icon:'users',tint: absenPct!==null && absenPct>5 ? 'var(--red-bg)':'var(--green-bg)', color: absenPct!==null && absenPct>5 ? 'var(--red)':'var(--green)', label:'Hadir / Tidak Hadir', value:fmtNum(totalPresent), unit:'/ '+fmtNum(totalAbsent), sub: absenPct===null?'Belum ada data':'Absensi '+fmtNum(absenPct,1)+'% · Semua Line'})}
@@ -1210,6 +1260,10 @@ async function buildDashboardHtml(period){
       ${kpiCard({icon:'trend',tint:'var(--accent-soft)',color:'var(--accent)',label:'Rata-rata Productivity',value:overallProductivity===null?'-':fmtNum(overallProductivity,2),unit:'pcs/mc-shift',sub:'Line Normal'})}
       ${kpiCard({icon:'trend',tint:'var(--accent-soft)',color:'var(--accent)',label:'Contribution',value:overallContribution===null?'-':fmtNum(overallContribution,0),unit:'/mc-shift',sub:'Productivity × Gross Margin · Line Normal'})}
     </div>
+
+    <h3 style="margin-top:22px;">&#127942; Top 3 Line — Efisiensi Tertinggi</h3>
+    <p class="sub" style="margin:0 0 4px;">${pNoun} · Line Normal · diurutkan dari Efisiensi tertinggi</p>
+    ${top3Html}
 
     <div class="chart-grid">
       <div class="chart-box">
