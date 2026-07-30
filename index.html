@@ -615,7 +615,7 @@ function openLineDetail(line){
   window.scrollTo({top:0, behavior:'smooth'});
 }
 function renderLineDetailPage(r){
-  const isSupport = r.lineType==='support';
+  const isSupport = r.lineType==='preparation';
   const pillLabel = r.cls==='ok' ? 'Baik' : r.cls==='watch' ? 'Waspada' : r.cls==='risk' ? 'Kritis' : r.cls==='notarget' ? 'Target Belum Diisi' : 'Belum Update';
   const barPct = r.eff===null ? 4 : Math.max(4, Math.min(r.eff, 100));
 
@@ -650,7 +650,7 @@ function renderLineDetailPage(r){
     <div class="ld-hero ${r.cls}">
       <div class="ld-hero-top">
         <div>
-          <div class="ld-hero-line">Line ${escapeHtml(r.line)} ${isSupport?'<span class="ld-hero-pill" style="margin-left:6px;">Support</span>':''}</div>
+          <div class="ld-hero-line">Line ${escapeHtml(r.line)} ${isSupport?'<span class="ld-hero-pill" style="margin-left:6px;">Preparation</span>':''}</div>
           <div class="ld-hero-style">${escapeHtml(r.style || 'Belum ada style running')}</div>
         </div>
         <span class="ld-hero-pill">${pillLabel}</span>
@@ -1051,7 +1051,7 @@ async function buildDashboardHtml(period){
   const perLine = {};
   const allLines = new Set(LINES);
   Object.keys(configsByLine).forEach(l=>allLines.add(l));
-  allLines.forEach(l => perLine[l] = { line:l, target:0, targetFull:0, output:0, present:0, absent:0, mesin:0, hasConfig:false, style:'', lineType:'normal' });
+  allLines.forEach(l => perLine[l] = { line:l, target:0, targetFull:0, output:0, present:0, absent:0, mesin:0, hasConfig:false, style:'', lineType:'assembly' });
 
   const nowMs = Date.now();
   // Target berjalan (prorata jam) -- dipakai untuk Efisiensi, bukan target harian penuh.
@@ -1093,7 +1093,7 @@ async function buildDashboardHtml(period){
         perLine[l].targetFull += fullTarget;
         perLine[l].mesin = Number(c.mesin) || perLine[l].mesin;
         perLine[l].style = c.style || perLine[l].style;
-        perLine[l].lineType = c.line_type === 'support' ? 'support' : 'normal';
+        perLine[l].lineType = c.line_type === 'preparation' ? 'preparation' : 'assembly';
         perLine[l].hasConfig = true;
         perLine[l].smv = c.smv;
         perLine[l].mp = c.mp;
@@ -1107,14 +1107,14 @@ async function buildDashboardHtml(period){
     });
     const dayOutput = {};
     qtyLogs.forEach(q=>{
-      if(!perLine[q.line]) { allLines.add(q.line); perLine[q.line] = { line:q.line, target:0, targetFull:0, output:0, present:0, absent:0, mesin:0, hasConfig:false, style:'', lineType:'normal' }; }
+      if(!perLine[q.line]) { allLines.add(q.line); perLine[q.line] = { line:q.line, target:0, targetFull:0, output:0, present:0, absent:0, mesin:0, hasConfig:false, style:'', lineType:'assembly' }; }
       // qty bersifat kumulatif per slot per hari, jadi output harian = nilai kumulatif TERTINGGI hari itu.
       const cum = Number(q.qty)||0;
       if(!dayOutput[q.line] || cum > dayOutput[q.line]) dayOutput[q.line] = cum;
     });
     Object.keys(dayOutput).forEach(l=>{ perLine[l].output += dayOutput[l]; });
     attendances.forEach(a=>{
-      if(!perLine[a.line]) { allLines.add(a.line); perLine[a.line] = { line:a.line, target:0, targetFull:0, output:0, present:0, absent:0, mesin:0, hasConfig:false, style:'', lineType:'normal' }; }
+      if(!perLine[a.line]) { allLines.add(a.line); perLine[a.line] = { line:a.line, target:0, targetFull:0, output:0, present:0, absent:0, mesin:0, hasConfig:false, style:'', lineType:'assembly' }; }
       perLine[a.line].present += Number(a.present_count)||0;
       perLine[a.line].absent += Number(a.absent_count)||0;
     });
@@ -1151,7 +1151,7 @@ async function buildDashboardHtml(period){
   });
 
   const activeRows = rows.filter(r=>r.hasConfig || r.outputActual>0);
-  const normalRows = rows.filter(r=>r.lineType!=='support');
+  const normalRows = rows.filter(r=>r.lineType!=='preparation');
   const totalOutputActual = normalRows.reduce((s,r)=>s+r.outputActual,0);
   const totalTarget = normalRows.reduce((s,r)=>s+r.target,0);
   const totalTargetFull = normalRows.reduce((s,r)=>s+r.targetFull,0);
@@ -1167,7 +1167,7 @@ async function buildDashboardHtml(period){
 
   const counts = { ok:0, watch:0, risk:0, empty:0, notarget:0 };
   normalRows.forEach(r=>counts[r.cls]++);
-  const supportCount = rows.filter(r=>r.lineType==='support' && (r.hasConfig||r.outputActual>0)).length;
+  const supportCount = rows.filter(r=>r.lineType==='preparation' && (r.hasConfig||r.outputActual>0)).length;
 
   const pNoun = periodLabelText(period);
   const rangeText = periodRangeText(dates, period);
@@ -1175,13 +1175,13 @@ async function buildDashboardHtml(period){
   const cells = rows.map(r=>{
     const barPct = r.eff===null ? 4 : Math.max(4, Math.min(r.eff, 100));
     const pillLabel = r.cls==='ok' ? 'Baik' : r.cls==='watch' ? 'Waspada' : r.cls==='risk' ? 'Kritis' : r.cls==='notarget' ? 'Target Belum Diisi' : 'Belum Update';
-    const isSupport = r.lineType==='support';
+    const isSupport = r.lineType==='preparation';
     const mcShiftMetric = isIE ? `<div class="metric">MC Shift<b>${r.mcShift8h>0?fmtNum(r.mcShift8h,1):'-'}</b></div>` : '';
     return `
       <div class="andon cell ${r.cls}" onclick="openLineDetail('${r.line}')" style="cursor:pointer;${isSupport?'border-style:dashed;':''}">
         <div class="row-top">
           <div>
-            <div class="ln">Line ${r.line} ${isSupport?'<span class="pill" style="background:var(--watch-bg);color:var(--amber-ink);margin-left:4px;">Support</span>':''}</div>
+            <div class="ln">Line ${r.line} ${isSupport?'<span class="pill" style="background:var(--watch-bg);color:var(--amber-ink);margin-left:4px;">Preparation</span>':''}</div>
             <div class="sub" style="margin:2px 0 0;min-height:14px;">${r.style || 'Belum ada style running'}</div>
           </div>
           <span class="pill">${pillLabel}</span>
@@ -1199,14 +1199,14 @@ async function buildDashboardHtml(period){
 
   const mcRows = activeRows.length ? activeRows : rows.filter(r=>r.hasConfig);
   const mcTableRows = mcRows.map(r=>{
-    const isSupport = r.lineType==='support';
+    const isSupport = r.lineType==='preparation';
     const confidentialCols = isIE ? `
       <td class="num">${fmtNum(r.mesin)}</td>
       <td class="num">${r.mcShift8h>0?fmtNum(r.mcShift8h,1):'-'}</td>` : '';
     return `
     <tr${isSupport?' style="opacity:.75;"':''}>
       <td>LINE ${r.line}</td>
-      <td><span class="pill" style="background:${isSupport?'var(--watch-bg)':'var(--green-bg)'};color:${isSupport?'var(--amber-ink)':'var(--green)'};">${isSupport?'Support':'Normal'}</span></td>
+      <td><span class="pill" style="background:${isSupport?'var(--watch-bg)':'var(--green-bg)'};color:${isSupport?'var(--amber-ink)':'var(--green)'};">${isSupport?'Preparation':'Assembly'}</span></td>
       <td class="num">${fmtNum(r.outputActual)}</td>
       ${confidentialCols}
       <td class="num">${r.productivity===null?'-':fmtNum(r.productivity,2)}</td>
@@ -1217,10 +1217,10 @@ async function buildDashboardHtml(period){
   const uid = period; // suffix unik untuk canvas id
 
   const confidentialKpis = isIE ? `
-      ${kpiCard({icon:'cog',tint:'var(--panel3)',color:'var(--accent)',label:'Total Mesin Digunakan',value:fmtNum(totalMesin),unit:'mesin',sub:'Jumlah mesin aktual · Line Normal'})}
-      ${kpiCard({icon:'gauge',tint:'var(--panel3)',color:'var(--accent)',label:'MC Shift',value:fmtNum(totalMcShift8h,1),unit:'mesin-shift',sub:'Jumlah Mesin ÷ 8 × 7 · Line Normal'})}` : '';
+      ${kpiCard({icon:'cog',tint:'var(--panel3)',color:'var(--accent)',label:'Total Mesin Digunakan',value:fmtNum(totalMesin),unit:'mesin',sub:'Jumlah mesin aktual · Line Assembly'})}
+      ${kpiCard({icon:'gauge',tint:'var(--panel3)',color:'var(--accent)',label:'MC Shift',value:fmtNum(totalMcShift8h,1),unit:'mesin-shift',sub:'Jumlah Mesin ÷ 8 × 7 · Line Assembly'})}` : '';
 
-  // ---- Top 3 Line (papan peringkat efisiensi, Line Normal, harus ada target) ----
+  // ---- Top 3 Line (papan peringkat efisiensi, Line Assembly, harus ada target) ----
   const top3 = normalRows
     .filter(r=>r.eff!==null)
     .sort((a,b)=> b.eff-a.eff || b.outputActual-a.outputActual)
@@ -1252,23 +1252,23 @@ async function buildDashboardHtml(period){
     <p class="sub" style="margin-top:-8px;">${rangeText}</p>
 
     <div class="kpis">
-      ${kpiCard({icon:'box',tint:'var(--accent-soft)',color:'var(--accent)',label:'Output Aktual',value:fmtNum(totalOutputActual),unit:'unit',sub:'Line Normal · '+pNoun})}
-      ${kpiCard({icon:'target',tint:'var(--panel3)',color:'var(--accent)',label:'Target Harian Penuh',value:fmtNum(totalTargetFull),unit:'unit',sub:'Target 1 hari penuh · Line Normal'})}
-      ${kpiCard({icon:'shield',tint: avgEff===null? 'var(--panel3)' : avgEff>=75?'var(--green-bg)':avgEff>=55?'var(--watch-bg)':'var(--red-bg)', color: avgEff===null?'var(--muted)':avgEff>=75?'var(--green)':avgEff>=55?'var(--amber-ink)':'var(--red)', label:'Rata-rata Efisiensi', value:avgEff===null?'-':avgEff+'%', sub:'Target ≥ 75% · Line Normal'})}
+      ${kpiCard({icon:'box',tint:'var(--accent-soft)',color:'var(--accent)',label:'Output Aktual',value:fmtNum(totalOutputActual),unit:'unit',sub:'Line Assembly · '+pNoun})}
+      ${kpiCard({icon:'target',tint:'var(--panel3)',color:'var(--accent)',label:'Target Harian Penuh',value:fmtNum(totalTargetFull),unit:'unit',sub:'Target 1 hari penuh · Line Assembly'})}
+      ${kpiCard({icon:'shield',tint: avgEff===null? 'var(--panel3)' : avgEff>=75?'var(--green-bg)':avgEff>=55?'var(--watch-bg)':'var(--red-bg)', color: avgEff===null?'var(--muted)':avgEff>=75?'var(--green)':avgEff>=55?'var(--amber-ink)':'var(--red)', label:'Rata-rata Efisiensi', value:avgEff===null?'-':avgEff+'%', sub:'Target ≥ 75% · Line Assembly'})}
       ${kpiCard({icon:'users',tint: absenPct!==null && absenPct>5 ? 'var(--red-bg)':'var(--green-bg)', color: absenPct!==null && absenPct>5 ? 'var(--red)':'var(--green)', label:'Hadir / Tidak Hadir', value:fmtNum(totalPresent), unit:'/ '+fmtNum(totalAbsent), sub: absenPct===null?'Belum ada data':'Absensi '+fmtNum(absenPct,1)+'% · Semua Line'})}
       ${confidentialKpis}
-      ${kpiCard({icon:'trend',tint:'var(--accent-soft)',color:'var(--accent)',label:'Rata-rata Productivity',value:overallProductivity===null?'-':fmtNum(overallProductivity,2),unit:'pcs/mc-shift',sub:'Line Normal'})}
-      ${kpiCard({icon:'trend',tint:'var(--accent-soft)',color:'var(--accent)',label:'Contribution',value:overallContribution===null?'-':fmtNum(overallContribution,0),unit:'/mc-shift',sub:'Productivity × Gross Margin · Line Normal'})}
+      ${kpiCard({icon:'trend',tint:'var(--accent-soft)',color:'var(--accent)',label:'Rata-rata Productivity',value:overallProductivity===null?'-':fmtNum(overallProductivity,2),unit:'pcs/mc-shift',sub:'Line Assembly'})}
+      ${kpiCard({icon:'trend',tint:'var(--accent-soft)',color:'var(--accent)',label:'Contribution',value:overallContribution===null?'-':fmtNum(overallContribution,0),unit:'/mc-shift',sub:'Productivity × Gross Margin · Line Assembly'})}
     </div>
 
     <h3 style="margin-top:22px;">&#127942; Top 3 Line — Efisiensi Tertinggi</h3>
-    <p class="sub" style="margin:0 0 4px;">${pNoun} · Line Normal · diurutkan dari Efisiensi tertinggi</p>
+    <p class="sub" style="margin:0 0 4px;">${pNoun} · Line Assembly · diurutkan dari Efisiensi tertinggi</p>
     ${top3Html}
 
     <div class="chart-grid">
       <div class="chart-box">
         <h3 style="margin:0 0 2px;">Efisiensi per Line</h3>
-        <p class="sub" style="margin:0 0 10px;">Target garis putus-putus di 75% · semua line ditampilkan (Normal &amp; Support)</p>
+        <p class="sub" style="margin:0 0 10px;">Target garis putus-putus di 75% · semua line ditampilkan (Assembly &amp; Preparation)</p>
         <canvas id="effChart_${uid}" height="115"></canvas>
       </div>
       <div class="chart-box">
@@ -1297,7 +1297,7 @@ async function buildDashboardHtml(period){
       <span><i style="background:var(--green);"></i>Baik (≥75%)</span>
       <span><i style="background:var(--amber);"></i>Waspada (55–74%)</span>
       <span><i style="background:var(--red);"></i>Kritis (&lt;55%)</span>
-      <span><i style="background:var(--faint);border:1px dashed var(--amber-ink);"></i>Kartu putus-putus = line Support (di luar KPI)</span>
+      <span><i style="background:var(--faint);border:1px dashed var(--amber-ink);"></i>Kartu putus-putus = line Preparation (di luar KPI)</span>
     </div>
     <div class="andon">${cells}</div>
 
@@ -1673,7 +1673,7 @@ async function renderIeLineConfig(){
     </div>
     <div class="panel">
       <h2>Variabel per Line</h2>
-      <p class="sub">Style, SMV, target, rencana tanggal — 1 line hanya punya 1 baris aktif; simpan ulang akan menimpa (overwrite) data sebelumnya, bukan menambah baris baru. Jenis Line <b>Normal</b> ikut dijumlahkan di KPI Dashboard; jenis <b>Support</b> tetap tampil di detail per-line tapi tidak dijumlahkan di KPI.</p>
+      <p class="sub">Style, SMV, target, rencana tanggal — 1 line hanya punya 1 baris aktif; simpan ulang akan menimpa (overwrite) data sebelumnya, bukan menambah baris baru. Jenis Line <b>Assembly</b> ikut dijumlahkan di KPI Dashboard; jenis <b>Preparation</b> tetap tampil di detail per-line tapi tidak dijumlahkan di KPI.</p>
       <form id="lcForm">
         <div class="field-row">
           <div class="field"><label>Line</label>
@@ -1683,8 +1683,8 @@ async function renderIeLineConfig(){
           <div class="field"><label>Style</label><input type="text" id="lcStyle"></div>
           <div class="field"><label>Jenis Line</label>
             <select id="lcLineType">
-              <option value="normal">Normal</option>
-              <option value="support">Support</option>
+              <option value="assembly">Assembly</option>
+              <option value="preparation">Preparation</option>
             </select>
           </div>
         </div>
@@ -1781,11 +1781,11 @@ async function renderIeLineConfig(){
 
       if(!latest.length){ body.innerHTML = '<tr><td colspan="12" style="text-align:center;color:var(--muted);">Belum ada data.</td></tr>'; return; }
       body.innerHTML = latest.map(c=>{
-        const isSupport = c.line_type === 'support';
+        const isSupport = c.line_type === 'preparation';
         return `
         <tr>
           <td>${c.line}</td>
-          <td><span class="pill" style="background:${isSupport?'var(--watch-bg)':'var(--green-bg)'};color:${isSupport?'var(--amber-ink)':'var(--green)'};">${isSupport?'Support':'Normal'}</span></td>
+          <td><span class="pill" style="background:${isSupport?'var(--watch-bg)':'var(--green-bg)'};color:${isSupport?'var(--amber-ink)':'var(--green)'};">${isSupport?'Preparation':'Assembly'}</span></td>
           <td>${fmtDate(c.date)}</td><td>${c.style||'-'}</td>
           <td class="num">${fmtNum(c.smv,2)}</td><td class="num">${fmtNum(c.mp)}</td><td class="num">${fmtNum(c.wh,1)}</td>
           <td>${c.shift_start||'-'}</td>
@@ -1806,7 +1806,7 @@ async function renderIeLineConfig(){
     document.getElementById('lcLine').value = c.line;
     document.getElementById('lcDate').value = c.date;
     document.getElementById('lcStyle').value = c.style||'';
-    document.getElementById('lcLineType').value = c.line_type==='support' ? 'support' : 'normal';
+    document.getElementById('lcLineType').value = c.line_type==='preparation' ? 'preparation' : 'assembly';
     document.getElementById('lcQtyOrder').value = c.qty_order||'';
     document.getElementById('lcPlanStart').value = c.plan_start||'';
     document.getElementById('lcPlanFinish').value = c.plan_finish||'';
