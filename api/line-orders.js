@@ -16,7 +16,7 @@ module.exports = async (req, res) => {
   const supabase = getServiceClient();
 
   if (req.method === 'GET') {
-    // Semua role boleh baca (dipakai untuk hitung BLC di halaman Detail Line).
+    // Semua role boleh baca (dipakai untuk hitung BLC & tampilan Detail Line).
     let query = supabase.from('line_orders').select('*').order('plan_start', { ascending: true });
     if (req.query.line) query = query.eq('line', req.query.line);
     const { data, error } = await query;
@@ -25,10 +25,7 @@ module.exports = async (req, res) => {
   }
 
   if (req.method === 'POST') {
-    // Normalnya baris riwayat di sini otomatis dibuat/diupdate oleh endpoint
-    // /api/line-config setiap kali style/plan_start berubah. Endpoint ini
-    // dibuka juga untuk IE supaya bisa membetulkan riwayat secara manual
-    // kalau perlu (mis. salah input qty_order/plan_finish untuk order lama).
+    // Hanya IE yang boleh mengatur Order/Style.
     try {
       requireRole(user, ['ie']);
     } catch (err) {
@@ -47,12 +44,21 @@ module.exports = async (req, res) => {
       line,
       style,
       plan_start: planStart,
-      plan_finish: b.planFinish || null,
+      plan_finish: b.planFinish ? String(b.planFinish).trim() : null,
+      delivery_date: b.deliveryDate ? String(b.deliveryDate).trim() : null,
       qty_order: Number(b.qtyOrder) || 0,
+      smv: Number(b.smv) || 0,
+      target_output: Number(b.targetOutput) || 0,
       updated_by: user.id,
       updated_at: new Date().toISOString(),
     };
 
+    // 1 baris riwayat per kombinasi line+style+plan_start -- simpan ulang
+    // dengan kombinasi yang SAMA akan meng-update baris itu (mis. betulkan
+    // qty_order/SMV yang salah ketik), BUKAN duplikat baris riwayat baru.
+    // Kombinasi line+style+plan_start yang beda selalu jadi baris riwayat
+    // baru, sehingga Balance Qty (BLC) di halaman Detail Line bisa
+    // diakumulasi dari semua order yang pernah jalan di line ini.
     const { data: existingRows, error: existingErr } = await supabase
       .from('line_orders')
       .select('id')
