@@ -676,6 +676,7 @@ function renderLineDetailPage(r){
       ${row('Qty Order', r.qtyOrder>0 ? fmtNum(r.qtyOrder) : '-')}
       ${row('Plan Start', r.planStart ? fmtDate(r.planStart) : '-')}
       ${row('Plan Finish', r.planFinish ? fmtDate(r.planFinish) : '-')}
+      ${row('Delivery Date', r.deliveryDate ? fmtDate(r.deliveryDate) : '-')}
       ${row('SMV', r.smv>0 ? fmtNum(r.smv,2) : '-')}
       ${row('Manpower (MP)', r.mp>0 ? fmtNum(r.mp) : '-')}
       ${row('Jam Kerja (WH)', r.wh>0 ? fmtNum(r.wh,1) : '-')}
@@ -1134,11 +1135,15 @@ async function buildDashboardHtml(period){
   const dates = periodDatesFor(period);
   const isIE = currentUser && currentUser.role === 'ie';
 
-  const [allConfigs, perDateOutputs, settings] = await Promise.all([
+  const [allConfigs, allOrders, perDateOutputs, settings] = await Promise.all([
     // Sejak line_config disederhanakan jadi 1 baris aktif per line (tidak ada
     // histori per tanggal lagi), config ini berlaku untuk seluruh tanggal di
-    // periode -- cukup ambil sekali tanpa filter tanggal.
+    // periode -- cukup ambil sekali tanpa filter tanggal. line_config sekarang
+    // CUMA berisi data Setup Line (MP/WH/Mesin/Jenis Line/dst) -- data
+    // Style/Qty Order/SMV/Plan Start-Finish/Delivery Date ada di line_orders
+    // (baris riwayat, tidak ditimpa), digabung di bawah.
     apiGet('/line-config'),
+    apiGet('/line-orders'),
     Promise.all(dates.map(async d=>{
       const [qtyLogs, attendances] = await Promise.all([
         apiGet('/qty-logs?date=' + d),
@@ -1150,14 +1155,37 @@ async function buildDashboardHtml(period){
   ]);
   const grossMargin = Number(settings.gross_margin) || 0;
 
-  // 1 baris config per line -- berlaku sama untuk semua tanggal di periode.
+  // 1 baris config (Setup Line) per line -- berlaku sama untuk semua tanggal di periode.
   const configsByLine = {};
   allConfigs.forEach(c=>{
     if(!configsByLine[c.line] || c.date > configsByLine[c.line].date) configsByLine[c.line] = c;
   });
 
+  // Order/Style TERKINI per line = plan_start terbaru (kalau sama, updated_at
+  // terbaru yang menang). line_orders sendiri tetap simpan seluruh riwayat --
+  // di sini cuma diambil satu yang lagi berjalan buat KPI/andon/dashboard.
+  const currentOrderByLine = {};
+  allOrders.forEach(o=>{
+    const cur = currentOrderByLine[o.line];
+    if(!cur || o.plan_start > cur.plan_start || (o.plan_start === cur.plan_start && (o.updated_at||'') > (cur.updated_at||''))){
+      currentOrderByLine[o.line] = o;
+    }
+  });
+
   function effectiveConfigAsOf(line, d){
-    return configsByLine[line] || null;
+    const setup = configsByLine[line] || null;
+    const order = currentOrderByLine[line] || null;
+    if(!setup && !order) return null;
+    return {
+      ...(setup||{}),
+      style: order ? order.style : '',
+      qty_order: order ? Number(order.qty_order)||0 : 0,
+      smv: order ? Number(order.smv)||0 : 0,
+      plan_start: order ? order.plan_start : null,
+      plan_finish: order ? order.plan_finish : null,
+      delivery_date: order ? order.delivery_date : null,
+      target_output: order ? Number(order.target_output)||0 : 0,
+    };
   }
 
   const perLine = {};
@@ -1213,6 +1241,7 @@ async function buildDashboardHtml(period){
         perLine[l].shiftStart = c.shift_start || null;
         perLine[l].planStart = c.plan_start || null;
         perLine[l].planFinish = c.plan_finish || null;
+        perLine[l].deliveryDate = c.delivery_date || null;
         perLine[l].qtyOrder = Number(c.qty_order) || 0;
         perLine[l].notes = c.notes || '';
       }
@@ -1769,7 +1798,6 @@ async function loadIeDashContent(){
 // ---------- Variabel Line ----------
 async function renderIeLineConfig(){
   const root = document.getElementById('ie-lineconfig');
-  const date = todayStr();
   root.innerHTML = `
     <div class="panel" style="max-width:420px;">
       <h3>Pengaturan Global</h3>
@@ -1784,48 +1812,73 @@ async function renderIeLineConfig(){
       </form>
     </div>
     <div class="panel">
-      <h2>Variabel per Line</h2>
-      <p class="sub">Style, SMV, target, rencana tanggal — 1 line hanya punya 1 baris aktif; simpan ulang akan menimpa (overwrite) data sebelumnya, bukan menambah baris baru. Jenis Line <b>Assembly</b> ikut dijumlahkan di KPI Dashboard; jenis <b>Preparation</b> tetap tampil di detail per-line tapi tidak dijumlahkan di KPI.</p>
+      <h2>Setup Line</h2>
+      <p class="sub">Data fisik/kapasitas line — MP, jam kerja, jumlah mesin, jenis line. 1 line hanya punya 1 baris aktif; simpan ulang akan menimpa (overwrite) data sebelumnya. Jenis Line <b>Assembly</b> ikut dijumlahkan di KPI Dashboard; jenis <b>Preparation</b> tetap tampil di detail per-line tapi tidak dijumlahkan di KPI.</p>
       <form id="lcForm">
         <div class="field-row">
           <div class="field"><label>Line</label>
             <select id="lcLine">${LINES.map(l=>`<option value="${l}">${l}</option>`).join('')}</select>
           </div>
-          <div class="field"><label>Tanggal</label><input type="date" id="lcDate" value="${date}"></div>
-          <div class="field"><label>Style</label><input type="text" id="lcStyle"></div>
           <div class="field"><label>Jenis Line</label>
             <select id="lcLineType">
               <option value="assembly">Assembly</option>
               <option value="preparation">Preparation</option>
             </select>
           </div>
-        </div>
-        <div class="field-row">
-          <div class="field"><label>Qty Order</label><input type="number" id="lcQtyOrder" min="0"></div>
-          <div class="field"><label>Plan Start</label><input type="date" id="lcPlanStart"></div>
-          <div class="field"><label>Plan Finish</label><input type="date" id="lcPlanFinish"></div>
-        </div>
-        <div class="field-row">
-          <div class="field"><label>SMV</label><input type="number" step="0.01" id="lcSmv" min="0"></div>
           <div class="field"><label>Manpower (MP)</label><input type="number" id="lcMp" min="0"></div>
           <div class="field"><label>Jam Kerja (WH)</label><input type="number" step="0.5" id="lcWh" min="0"></div>
-          <div class="field"><label>Jam Mulai Shift</label><input type="time" id="lcShiftStart" placeholder="misal 08:00 — dipakai untuk hitung Efisiensi real-time (target s.d. jam berjalan)"></div>
-          <div class="field"><label>Target Output (opsional, override)</label><input type="number" id="lcTarget" min="0" placeholder="otomatis dari MP×WH×60/SMV"></div>
         </div>
         <div class="field-row">
-          <div class="field"><label>Jumlah Mesin Digunakan</label><input type="number" id="lcMesin" min="0" placeholder="jumlah unit mesin di line — otomatis dikonversi ke MC Shift di Dashboard"></div>
+          <div class="field"><label>Jam Mulai Shift</label><input type="time" id="lcShiftStart" placeholder="misal 08:00 — dipakai untuk hitung Efisiensi real-time"></div>
+          <div class="field"><label>Jumlah Mesin Digunakan</label><input type="number" id="lcMesin" min="0" placeholder="jumlah unit mesin di line — otomatis dikonversi ke MC Shift"></div>
         </div>
         <div class="field"><label>Catatan</label><textarea id="lcNotes" rows="2"></textarea></div>
         <p id="lcError" style="color:var(--red);font-size:12.5px;min-height:1em;"></p>
-        <button type="submit" class="btn primary">Simpan Variabel</button>
+        <button type="submit" class="btn primary">Simpan Setup Line</button>
       </form>
     </div>
     <div class="panel">
-      <h3>Data Tersimpan</h3>
+      <h3>Setup Tersimpan</h3>
       <div class="tbl-wrap">
         <table>
-          <thead><tr><th>Line</th><th>Jenis</th><th>Tanggal</th><th>Style</th><th>SMV</th><th>MP</th><th>WH</th><th>Jam Mulai</th><th>Mesin</th><th>MC Shift</th><th>Target</th><th></th></tr></thead>
-          <tbody id="lcBody"><tr><td colspan="12" style="text-align:center;color:var(--muted);">Memuat...</td></tr></tbody>
+          <thead><tr><th>Line</th><th>Jenis</th><th>MP</th><th>WH</th><th>Jam Mulai</th><th>Mesin</th><th>MC Shift</th><th></th></tr></thead>
+          <tbody id="lcBody"><tr><td colspan="8" style="text-align:center;color:var(--muted);">Memuat...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Order / Style</h2>
+      <p class="sub">Style, SMV, Qty Order, rencana &amp; tanggal delivery — <b>punya riwayat</b>. Tiap kali Style/Plan Start baru disimpan, otomatis jadi baris riwayat baru (bukan menimpa order sebelumnya), sehingga Balance Qty (BLC) di halaman Detail Line bisa diakumulasi dari semua order yang pernah jalan. Simpan ulang dengan Style+Plan Start yang SAMA akan meng-update baris riwayat itu (bukan duplikat).</p>
+      <form id="loForm">
+        <div class="field-row">
+          <div class="field"><label>Line</label>
+            <select id="loLine">${LINES.map(l=>`<option value="${l}">${l}</option>`).join('')}</select>
+          </div>
+          <div class="field"><label>Style</label><input type="text" id="loStyle"></div>
+          <div class="field"><label>SMV</label><input type="number" step="0.01" id="loSmv" min="0"></div>
+          <div class="field"><label>Qty Order</label><input type="number" id="loQtyOrder" min="0"></div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label>Plan Start</label><input type="date" id="loPlanStart"></div>
+          <div class="field"><label>Plan Finish</label><input type="date" id="loPlanFinish"></div>
+          <div class="field"><label>Delivery Date</label><input type="date" id="loDeliveryDate"></div>
+          <div class="field"><label>Target Output (opsional, override)</label><input type="number" id="loTarget" min="0" placeholder="otomatis dari MP×WH×60/SMV"></div>
+        </div>
+        <p id="loError" style="color:var(--red);font-size:12.5px;min-height:1em;"></p>
+        <button type="submit" class="btn primary">Simpan Order</button>
+        <button type="button" class="btn ghost sm" id="loResetBtn">Order Baru (Kosongkan Form)</button>
+      </form>
+    </div>
+    <div class="panel">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;">
+        <h3 style="margin:0;">Riwayat Order</h3>
+        <div class="field" style="min-width:140px;margin:0;"><select id="loHistoryLine">${LINES.map(l=>`<option value="${l}">${l}</option>`).join('')}</select></div>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Style</th><th>Plan Start</th><th>Plan Finish</th><th>Delivery</th><th>Qty Order</th><th>SMV</th><th>Target</th><th></th></tr></thead>
+          <tbody id="loBody"><tr><td colspan="8" style="text-align:center;color:var(--muted);">Memuat...</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -1876,6 +1929,8 @@ async function renderIeLineConfig(){
 
   let lcCache = [];
   root.querySelectorAll('table').forEach(makeTableSortable);
+
+  // ---- Setup Line ----
   async function refreshTable(){
     const body = document.getElementById('lcBody');
     try{
@@ -1884,31 +1939,28 @@ async function renderIeLineConfig(){
 
       // Jaga-jaga: kalau migrasi cleanup belum dijalankan (masih ada baris
       // duplikat lama), tetap tampilkan hanya 1 baris terbaru per line.
-      // Setelah migrasi dijalankan, list ini memang sudah otomatis unik.
       const latestByLine = {};
       list.forEach(c=>{
-        if(!latestByLine[c.line] || c.date > latestByLine[c.line].date) latestByLine[c.line] = c;
+        if(!latestByLine[c.line] || (c.updated_at||c.date) > (latestByLine[c.line].updated_at||latestByLine[c.line].date)) latestByLine[c.line] = c;
       });
       const latest = Object.values(latestByLine).sort((a,b)=> a.line.localeCompare(b.line));
 
-      if(!latest.length){ body.innerHTML = '<tr><td colspan="12" style="text-align:center;color:var(--muted);">Belum ada data.</td></tr>'; return; }
+      if(!latest.length){ body.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--muted);">Belum ada data.</td></tr>'; return; }
       body.innerHTML = latest.map(c=>{
         const isSupport = c.line_type === 'preparation';
         return `
         <tr>
           <td>${c.line}</td>
           <td><span class="pill" style="background:${isSupport?'var(--watch-bg)':'var(--green-bg)'};color:${isSupport?'var(--amber-ink)':'var(--green)'};">${isSupport?'Preparation':'Assembly'}</span></td>
-          <td>${fmtDate(c.date)}</td><td>${c.style||'-'}</td>
-          <td class="num">${fmtNum(c.smv,2)}</td><td class="num">${fmtNum(c.mp)}</td><td class="num">${fmtNum(c.wh,1)}</td>
+          <td class="num">${fmtNum(c.mp)}</td><td class="num">${fmtNum(c.wh,1)}</td>
           <td>${c.shift_start||'-'}</td>
           <td class="num">${fmtNum(c.mesin)}</td>
           <td class="num">${fmtNum((Number(c.mesin)||0)/8*7,1)}</td>
-          <td class="num">${fmtNum(c.target_output>0?c.target_output:(c.smv>0?(c.mp*c.wh*60/c.smv):0))}</td>
           <td><button class="btn ghost sm" data-id="${c.id}" onclick="fillLcForm(this.dataset.id)">Edit</button></td>
         </tr>`;
       }).join('');
     }catch(err){
-      body.innerHTML = '<tr><td colspan="12" style="color:var(--red);">Gagal memuat: '+err.message+'</td></tr>';
+      body.innerHTML = '<tr><td colspan="8" style="color:var(--red);">Gagal memuat: '+err.message+'</td></tr>';
     }
   }
 
@@ -1916,17 +1968,10 @@ async function renderIeLineConfig(){
     const c = lcCache.find(x=>x.id===id);
     if(!c) return;
     document.getElementById('lcLine').value = c.line;
-    document.getElementById('lcDate').value = c.date;
-    document.getElementById('lcStyle').value = c.style||'';
     document.getElementById('lcLineType').value = c.line_type==='preparation' ? 'preparation' : 'assembly';
-    document.getElementById('lcQtyOrder').value = c.qty_order||'';
-    document.getElementById('lcPlanStart').value = c.plan_start||'';
-    document.getElementById('lcPlanFinish').value = c.plan_finish||'';
-    document.getElementById('lcSmv').value = c.smv||'';
     document.getElementById('lcMp').value = c.mp||'';
     document.getElementById('lcWh').value = c.wh||'';
     document.getElementById('lcShiftStart').value = c.shift_start||'';
-    document.getElementById('lcTarget').value = c.target_output||'';
     document.getElementById('lcMesin').value = c.mesin||'';
     document.getElementById('lcNotes').value = c.notes||'';
     window.scrollTo({top:0,behavior:'smooth'});
@@ -1938,27 +1983,99 @@ async function renderIeLineConfig(){
     errEl.textContent = '';
     const payload = {
       line: document.getElementById('lcLine').value,
-      date: document.getElementById('lcDate').value,
-      style: document.getElementById('lcStyle').value,
       lineType: document.getElementById('lcLineType').value,
-      qtyOrder: document.getElementById('lcQtyOrder').value,
-      planStart: document.getElementById('lcPlanStart').value,
-      planFinish: document.getElementById('lcPlanFinish').value,
-      smv: document.getElementById('lcSmv').value,
       mp: document.getElementById('lcMp').value,
       wh: document.getElementById('lcWh').value,
       shiftStart: document.getElementById('lcShiftStart').value,
-      targetOutput: document.getElementById('lcTarget').value,
       mesin: document.getElementById('lcMesin').value,
       notes: document.getElementById('lcNotes').value,
     };
     try{
       await apiPost('/line-config', payload);
-      showToast('Variabel line '+payload.line+' tersimpan.');
+      showToast('Setup line '+payload.line+' tersimpan.');
       refreshTable();
     }catch(err){ errEl.textContent = 'Gagal: '+err.message; }
   });
 
+  // ---- Order / Style (riwayat) ----
+  let loCache = [];
+  async function refreshOrderHistory(){
+    const body = document.getElementById('loBody');
+    const line = document.getElementById('loHistoryLine').value;
+    body.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--muted);">Memuat...</td></tr>';
+    try{
+      const list = await apiGet('/line-orders?line='+encodeURIComponent(line));
+      loCache = list;
+      const sorted = [...list].sort((a,b)=> a.plan_start < b.plan_start ? 1 : a.plan_start > b.plan_start ? -1 : 0);
+      if(!sorted.length){ body.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--muted);">Belum ada riwayat order untuk line ini.</td></tr>'; return; }
+      body.innerHTML = sorted.map(o=>`
+        <tr>
+          <td>${escapeHtml(o.style||'-')}</td>
+          <td>${o.plan_start?fmtDate(o.plan_start):'-'}</td>
+          <td>${o.plan_finish?fmtDate(o.plan_finish):'-'}</td>
+          <td>${o.delivery_date?fmtDate(o.delivery_date):'-'}</td>
+          <td class="num">${fmtNum(o.qty_order)}</td>
+          <td class="num">${fmtNum(o.smv,2)}</td>
+          <td class="num">${o.target_output>0?fmtNum(o.target_output):'<span style="color:var(--muted);">auto</span>'}</td>
+          <td><button class="btn ghost sm" data-id="${o.id}" onclick="fillLoForm('${o.id}')">Edit</button></td>
+        </tr>`).join('');
+    }catch(err){
+      body.innerHTML = '<tr><td colspan="8" style="color:var(--red);">Gagal memuat: '+err.message+'</td></tr>';
+    }
+  }
+
+  window.fillLoForm = function(id){
+    const o = loCache.find(x=>x.id===id);
+    if(!o) return;
+    document.getElementById('loLine').value = o.line;
+    document.getElementById('loHistoryLine').value = o.line;
+    document.getElementById('loStyle').value = o.style||'';
+    document.getElementById('loSmv').value = o.smv||'';
+    document.getElementById('loQtyOrder').value = o.qty_order||'';
+    document.getElementById('loPlanStart').value = o.plan_start||'';
+    document.getElementById('loPlanFinish').value = o.plan_finish||'';
+    document.getElementById('loDeliveryDate').value = o.delivery_date||'';
+    document.getElementById('loTarget').value = o.target_output||'';
+    window.scrollTo({top:0,behavior:'smooth'});
+  };
+
+  document.getElementById('loResetBtn').addEventListener('click', ()=>{
+    document.getElementById('loForm').reset();
+    document.getElementById('loLine').value = document.getElementById('loHistoryLine').value;
+  });
+
+  document.getElementById('loForm').addEventListener('submit', async (ev)=>{
+    ev.preventDefault();
+    const errEl = document.getElementById('loError');
+    errEl.textContent = '';
+    const payload = {
+      line: document.getElementById('loLine').value,
+      style: document.getElementById('loStyle').value,
+      smv: document.getElementById('loSmv').value,
+      qtyOrder: document.getElementById('loQtyOrder').value,
+      planStart: document.getElementById('loPlanStart').value,
+      planFinish: document.getElementById('loPlanFinish').value,
+      deliveryDate: document.getElementById('loDeliveryDate').value,
+      targetOutput: document.getElementById('loTarget').value,
+    };
+    if(!payload.style || !payload.planStart){
+      errEl.textContent = 'Style dan Plan Start wajib diisi.';
+      return;
+    }
+    try{
+      await apiPost('/line-orders', payload);
+      showToast('Order '+payload.style+' untuk line '+payload.line+' tersimpan.');
+      document.getElementById('loHistoryLine').value = payload.line;
+      refreshOrderHistory();
+    }catch(err){ errEl.textContent = 'Gagal: '+err.message; }
+  });
+
+  document.getElementById('loHistoryLine').addEventListener('change', refreshOrderHistory);
+  document.getElementById('loLine').addEventListener('change', ()=>{
+    document.getElementById('loHistoryLine').value = document.getElementById('loLine').value;
+    refreshOrderHistory();
+  });
+  refreshOrderHistory();
   document.getElementById('settingsForm').addEventListener('submit', async (ev)=>{
     ev.preventDefault();
     const errEl = document.getElementById('settingsError');
