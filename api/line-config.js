@@ -88,7 +88,45 @@ module.exports = async (req, res) => {
       .single();
 
     if (error) return res.status(500).json({ error: error.message });
-    return res.status(200).json(data);
+
+    // Catat/perbarui riwayat order ke line_orders, dipakai untuk hitung BLC
+    // yang diakumulasi dari SEMUA order yang pernah jalan di line ini (bukan
+    // cuma yang aktif sekarang). Cukup jalan kalau style & plan_start terisi;
+    // gagal di bagian ini TIDAK menggagalkan simpan line_config utamanya --
+    // cuma dicatat di response biar kelihatan di log kalau ada masalah.
+    let orderHistoryWarning = null;
+    if (row.style && row.plan_start) {
+      try {
+        const orderRow = {
+          line: row.line,
+          style: row.style,
+          plan_start: row.plan_start,
+          plan_finish: row.plan_finish,
+          qty_order: row.qty_order,
+          updated_by: user.id,
+          updated_at: row.updated_at,
+        };
+        const { data: existingOrders, error: existingOrderErr } = await supabase
+          .from('line_orders')
+          .select('id')
+          .eq('line', orderRow.line)
+          .eq('style', orderRow.style)
+          .eq('plan_start', orderRow.plan_start)
+          .limit(1);
+        if (existingOrderErr) throw existingOrderErr;
+        orderRow.id = (existingOrders && existingOrders.length)
+          ? existingOrders[0].id
+          : ('lo' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8));
+        const { error: upsertOrderErr } = await supabase
+          .from('line_orders')
+          .upsert(orderRow, { onConflict: 'id' });
+        if (upsertOrderErr) throw upsertOrderErr;
+      } catch (err) {
+        orderHistoryWarning = err.message;
+      }
+    }
+
+    return res.status(200).json(orderHistoryWarning ? { ...data, _orderHistoryWarning: orderHistoryWarning } : data);
   }
 
   res.setHeader('Allow', ['GET', 'POST']);
