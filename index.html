@@ -1296,6 +1296,7 @@ async function buildDashboardHtml(period){
   const totalOutputActual = normalRows.reduce((s,r)=>s+r.outputActual,0);
   const totalTarget = normalRows.reduce((s,r)=>s+r.target,0);
   const totalTargetFull = normalRows.reduce((s,r)=>s+r.targetFull,0);
+  const blcProduksi = totalOutputActual - totalTargetFull; // minus = kurang dari target, plus = lebih dari target
   // Kehadiran TIDAK dipisah normal/support -- dijumlahkan dari semua line.
   const totalPresent = rows.reduce((s,r)=>s+r.present,0);
   const totalAbsent = rows.reduce((s,r)=>s+r.absent,0);
@@ -1395,6 +1396,7 @@ async function buildDashboardHtml(period){
     <div class="kpis">
       ${kpiCard({icon:'box',tint:'var(--accent-soft)',color:'var(--accent)',label:'Output Aktual',value:fmtNum(totalOutputActual),unit:'unit',sub:'Line Assembly · '+pNoun})}
       ${kpiCard({icon:'target',tint:'var(--panel3)',color:'var(--accent)',label:'Target Harian Penuh',value:fmtNum(totalTargetFull),unit:'unit',sub:'Target 1 hari penuh · Line Assembly'})}
+      ${kpiCard({icon:'trend',tint: blcProduksi>=0?'var(--green-bg)':'var(--red-bg)', color: blcProduksi>=0?'var(--green)':'var(--red)', label:'BLC Produksi', value:(blcProduksi>0?'+':'')+fmtNum(blcProduksi), unit:'unit', sub:'Output − Target · '+pNoun+' · Line Assembly'})}
       ${kpiCard({icon:'shield',tint: avgEff===null? 'var(--panel3)' : avgEff>=75?'var(--green-bg)':avgEff>=55?'var(--watch-bg)':'var(--red-bg)', color: avgEff===null?'var(--muted)':avgEff>=75?'var(--green)':avgEff>=55?'var(--amber-ink)':'var(--red)', label:'Rata-rata Efisiensi', value:avgEff===null?'-':avgEff+'%', sub:'Target ≥ 75% · Line Assembly'})}
       ${kpiCard({icon:'users',tint: absenPct!==null && absenPct>5 ? 'var(--red-bg)':'var(--green-bg)', color: absenPct!==null && absenPct>5 ? 'var(--red)':'var(--green)', label:'Hadir / Tidak Hadir', value:fmtNum(totalPresent), unit:'/ '+fmtNum(totalAbsent), sub: absenPct===null?'Belum ada data':'Absensi '+fmtNum(absenPct,1)+'% · Semua Line'})}
       ${confidentialKpis}
