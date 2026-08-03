@@ -81,6 +81,13 @@
   .period-toggle{display:inline-flex;background:var(--panel2);border:1px solid var(--line);border-radius:999px;padding:3px;gap:2px;margin-bottom:16px;}
   .period-toggle button{border:none;cursor:pointer;padding:7px 15px;border-radius:999px;font-size:12.5px;font-weight:700;font-family:var(--body);background:transparent;color:var(--muted);}
   .period-toggle button.active{background:var(--accent);color:#fff;box-shadow:0 6px 14px -6px rgba(31,109,76,.5);}
+  .date-nav{display:inline-flex;align-items:center;gap:6px;margin:0 0 16px 10px;vertical-align:middle;}
+  .date-nav button{border:1px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer;width:30px;height:30px;border-radius:999px;font-size:14px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;}
+  .date-nav button:hover:not(:disabled){background:var(--panel2);}
+  .date-nav button:disabled{opacity:.35;cursor:not-allowed;}
+  .date-nav input[type="date"]{border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:12.5px;font-family:var(--body);color:var(--ink);background:var(--panel);}
+  .date-nav .today-btn{border-radius:999px;padding:6px 14px;font-size:12px;font-weight:700;width:auto;height:auto;background:var(--panel2);color:var(--muted);}
+  .date-nav .today-btn.hidden-btn{visibility:hidden;}
 
   /* ---- KPI cards ---- */
   .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin-bottom:20px;}
@@ -449,11 +456,42 @@ function datesBetween(start,end){
 }
 function startOfWeek(d){ const day=d.getDay(); const diff=day===0?6:day-1; const s=new Date(d); s.setDate(d.getDate()-diff); return s; }
 function startOfMonth(d){ return new Date(d.getFullYear(), d.getMonth(), 1); }
-function periodDatesFor(period){
-  const now = new Date();
-  if(period==='weekly') return datesBetween(startOfWeek(now), now);
-  if(period==='monthly') return datesBetween(startOfMonth(now), now);
-  return [toDateStr(now)];
+function endOfMonth(d){ return new Date(d.getFullYear(), d.getMonth()+1, 0); }
+// refDate (opsional, string 'YYYY-MM-DD') = tanggal acuan untuk navigasi ke
+// periode sebelumnya. Kalau tidak diisi, default ke hari ini (perilaku lama).
+// - daily: 1 hari persis di refDate.
+// - weekly/monthly: kalau periodenya mencakup hari ini, dipotong sampai hari
+//   ini (periode masih berjalan); kalau periode sudah lewat total (masa
+//   lalu), tampilkan penuh 1 minggu/1 bulan itu.
+function periodDatesFor(period, refDate){
+  const ref = refDate ? new Date(refDate+'T00:00:00') : new Date();
+  const today = new Date(); today.setHours(0,0,0,0);
+  if(period==='weekly'){
+    const start = startOfWeek(ref);
+    const natural = new Date(start); natural.setDate(natural.getDate()+6);
+    const end = (today>=start && today<=natural) ? today : natural;
+    return datesBetween(start, end);
+  }
+  if(period==='monthly'){
+    const start = startOfMonth(ref);
+    const natural = endOfMonth(ref);
+    const end = (today>=start && today<=natural) ? today : natural;
+    return datesBetween(start, end);
+  }
+  return [toDateStr(ref)];
+}
+function isCurrentPeriod(period, refDate){
+  const today = toDateStr(new Date());
+  if(period==='daily') return (refDate||today)===today;
+  const dates = periodDatesFor(period, refDate);
+  return dates.includes(today);
+}
+function stepRefDate(period, refDate, direction){
+  const d = refDate ? new Date(refDate+'T00:00:00') : new Date();
+  if(period==='weekly') d.setDate(d.getDate()+direction*7);
+  else if(period==='monthly') d.setMonth(d.getMonth()+direction, 1);
+  else d.setDate(d.getDate()+direction);
+  return toDateStr(d);
 }
 function periodLabelText(period){ return period==='weekly' ? 'minggu ini' : period==='monthly' ? 'bulan ini' : 'hari ini'; }
 
@@ -978,10 +1016,19 @@ async function renderLineSkillMatrix(line){
 }
 document.addEventListener('keydown', (e)=>{ if(e.key==='Escape' && !document.getElementById('view-lineskillmatrix').classList.contains('hidden')) closeLineSkillMatrix(); });
 
-function periodToggleHtml(active, groupId){
+function periodToggleHtml(active, groupId, refDate){
   const opts = [['daily','Harian'],['weekly','Mingguan'],['monthly','Bulanan']];
-  return `<div class="period-toggle" data-group="${groupId}">${opts.map(([k,l])=>
-    `<button data-period="${k}" class="${k===active?'active':''}">${l}</button>`).join('')}</div>`;
+  const rd = refDate || toDateStr(new Date());
+  const isCurrent = isCurrentPeriod(active, rd);
+  return `
+    <div class="period-toggle" data-group="${groupId}">${opts.map(([k,l])=>
+      `<button data-period="${k}" class="${k===active?'active':''}">${l}</button>`).join('')}</div>
+    <div class="date-nav" data-navgroup="${groupId}">
+      <button type="button" data-nav="prev" title="Periode sebelumnya">&#8249;</button>
+      <input type="date" data-nav="pick" value="${rd}" max="${toDateStr(new Date())}">
+      <button type="button" data-nav="next" title="Periode berikutnya" ${isCurrent?'disabled':''}>&#8250;</button>
+      <button type="button" class="today-btn ${isCurrent?'hidden-btn':''}" data-nav="today">Hari Ini</button>
+    </div>`;
 }
 
 // ---------- ikon kecil untuk kartu KPI ----------
@@ -1131,8 +1178,8 @@ async function initAuth(){
 // Dashboard helper (dipakai oleh Tamu & sub-tab Dashboard IE)
 // period: 'daily' | 'weekly' | 'monthly'
 // ================================================================
-async function buildDashboardHtml(period){
-  const dates = periodDatesFor(period);
+async function buildDashboardHtml(period, refDate){
+  const dates = periodDatesFor(period, refDate);
   const isIE = currentUser && currentUser.role === 'ie';
 
   const [allConfigs, allOrders, perDateOutputs, settings] = await Promise.all([
@@ -1390,7 +1437,7 @@ async function buildDashboardHtml(period){
     </div>`;
 
   const html = `
-    ${periodToggleHtml(period, 'dash')}
+    ${periodToggleHtml(period, 'dash', refDate)}
     <p class="sub" style="margin-top:-8px;">${rangeText}</p>
 
     <div class="kpis">
@@ -1561,6 +1608,7 @@ function renderProductivityChart(canvasId, rows){
 // TAMPILAN TAMU
 // ================================================================
 let tamuPeriod = 'daily';
+let tamuRefDate = toDateStr(new Date());
 async function renderTamuView(){
   const root = document.getElementById('view-tamu');
   root.innerHTML = `
@@ -1575,7 +1623,7 @@ async function loadTamuContent(){
   const wrap = document.getElementById('tamuContent');
   wrap.innerHTML = 'Memuat...';
   try{
-    const { html, rows, counts, uid, isIE } = await buildDashboardHtml(tamuPeriod);
+    const { html, rows, counts, uid, isIE } = await buildDashboardHtml(tamuPeriod, tamuRefDate);
     wrap.innerHTML = html;
     wrap.querySelectorAll('table').forEach(makeTableSortable);
     renderEffChart('effChart_' + uid, rows);
@@ -1584,6 +1632,16 @@ async function loadTamuContent(){
     renderProductivityChart('prodChart_' + uid, rows);
     wrap.querySelectorAll('.period-toggle button').forEach(btn=>{
       btn.addEventListener('click', ()=>{ tamuPeriod = btn.dataset.period; loadTamuContent(); });
+    });
+    wrap.querySelectorAll('.date-nav [data-nav]').forEach(el=>{
+      el.addEventListener(el.tagName==='INPUT'?'change':'click', ()=>{
+        const action = el.dataset.nav;
+        if(action==='prev') tamuRefDate = stepRefDate(tamuPeriod, tamuRefDate, -1);
+        else if(action==='next') tamuRefDate = stepRefDate(tamuPeriod, tamuRefDate, 1);
+        else if(action==='today') tamuRefDate = toDateStr(new Date());
+        else if(action==='pick') tamuRefDate = el.value || toDateStr(new Date());
+        loadTamuContent();
+      });
     });
   }catch(err){
     wrap.innerHTML = '<p style="color:var(--red);">Gagal memuat data: '+err.message+'</p>';
@@ -1769,6 +1827,7 @@ function goToIeSub(sub){
 }
 
 let iePeriod = 'daily';
+let ieRefDate = toDateStr(new Date());
 async function renderIeDashboard(){
   const root = document.getElementById('ie-dashboard');
   root.innerHTML = `
@@ -1782,7 +1841,7 @@ async function loadIeDashContent(){
   const wrap = document.getElementById('ieDashContent');
   wrap.innerHTML = 'Memuat...';
   try{
-    const { html, rows, counts, uid, isIE } = await buildDashboardHtml(iePeriod);
+    const { html, rows, counts, uid, isIE } = await buildDashboardHtml(iePeriod, ieRefDate);
     wrap.innerHTML = html;
     wrap.querySelectorAll('table').forEach(makeTableSortable);
     renderEffChart('effChart_' + uid, rows);
@@ -1791,6 +1850,16 @@ async function loadIeDashContent(){
     renderProductivityChart('prodChart_' + uid, rows);
     wrap.querySelectorAll('.period-toggle button').forEach(btn=>{
       btn.addEventListener('click', ()=>{ iePeriod = btn.dataset.period; loadIeDashContent(); });
+    });
+    wrap.querySelectorAll('.date-nav [data-nav]').forEach(el=>{
+      el.addEventListener(el.tagName==='INPUT'?'change':'click', ()=>{
+        const action = el.dataset.nav;
+        if(action==='prev') ieRefDate = stepRefDate(iePeriod, ieRefDate, -1);
+        else if(action==='next') ieRefDate = stepRefDate(iePeriod, ieRefDate, 1);
+        else if(action==='today') ieRefDate = toDateStr(new Date());
+        else if(action==='pick') ieRefDate = el.value || toDateStr(new Date());
+        loadIeDashContent();
+      });
     });
   }catch(err){
     wrap.innerHTML = '<p style="color:var(--red);">Gagal memuat: '+err.message+'</p>';
