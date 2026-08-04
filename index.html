@@ -707,7 +707,7 @@ function renderLineDetailPage(r){
 
     <div class="ld-grid">
       <div class="ld-stat"><div class="lbl">Output Aktual</div><div class="val">${fmtNum(r.outputActual)}</div></div>
-      <div class="ld-stat"><div class="lbl">Target</div><div class="val">${fmtNum(r.targetFull)}</div></div>
+      <div class="ld-stat"><div class="lbl">Target Harian Penuh</div><div class="val">${fmtNum(r.targetFull)}</div></div>
       <div class="ld-stat"><div class="lbl">Hadir / Absen</div><div class="val">${fmtNum(r.present)}/${fmtNum(r.absent)}</div></div>
     </div>
 
@@ -762,7 +762,7 @@ function renderLineDetailPage(r){
 
 // ---------- Balance Qty (BLC) & Forecast Target Harian/Mingguan/Bulanan ----------
 // Catatan penting: Target Harian/Mingguan/Bulanan dihitung dari KAPASITAS
-// harian line saat ini (Target, dari SMV/MP/Jam Kerja style yang
+// harian line saat ini (Target Harian Penuh, dari SMV/MP/Jam Kerja style yang
 // aktif sekarang) -- sengaja TIDAK dikaitkan ke Plan Finish, karena Plan
 // Finish melekat ke style yang berjalan dan bisa berganti beberapa kali
 // sebulan. Asumsi hari kerja: Senin-Sabtu (Minggu libur), 6 hari kerja/minggu,
@@ -1244,10 +1244,10 @@ async function buildDashboardHtml(period, refDate){
   allLines.forEach(l => perLine[l] = { line:l, target:0, targetFull:0, output:0, present:0, absent:0, mesin:0, hasConfig:false, style:'', lineType:'assembly' });
 
   const nowMs = Date.now();
-  // Target berjalan (prorata jam) -- dipakai untuk Efisiensi, bukan Target.
+  // Target berjalan (prorata jam) -- dipakai untuk Efisiensi, bukan target harian penuh.
   // Contoh: shift mulai 08:00, WH 7 jam, target harian 550. Jam 11:00 (3 jam berjalan)
   // target-s.d.-sekarang = 550 * (3/7) ~ 235, bukan 550. Kalau baris tidak punya
-  // Jam Mulai Shift, fallback ke Target (perilaku lama, tidak berubah).
+  // Jam Mulai Shift, fallback ke target harian penuh (perilaku lama, tidak berubah).
   function targetToDate(c, date, fullTarget){
     if(!c.shift_start || !(c.wh>0)) return fullTarget;
     const parts = String(c.shift_start).split(':');
@@ -1455,7 +1455,7 @@ async function buildDashboardHtml(period, refDate){
 
     <div class="kpis">
       ${kpiCard({icon:'box',tint:'var(--accent-soft)',color:'var(--accent)',label:'Output Aktual',value:fmtNum(totalOutputActual),unit:'unit',sub:'Line Assembly · '+pNoun})}
-      ${kpiCard({icon:'target',tint:'var(--panel3)',color:'var(--accent)',label:'Target',value:fmtNum(totalTargetFull),unit:'unit',sub:'Target 1 hari penuh · Line Assembly'})}
+      ${kpiCard({icon:'target',tint:'var(--panel3)',color:'var(--accent)',label:'Target Harian Penuh',value:fmtNum(totalTargetFull),unit:'unit',sub:'Target 1 hari penuh · Line Assembly'})}
       ${kpiCard({icon:'trend',tint: blcProduksi>=0?'var(--green-bg)':'var(--red-bg)', color: blcProduksi>=0?'var(--green)':'var(--red)', label:'BLC Produksi', value:(blcProduksi>0?'+':'')+fmtNum(blcProduksi), unit:'unit', sub:'Output − Target · '+pNoun+' · Line Assembly'})}
       ${kpiCard({icon:'shield',tint: avgEff===null? 'var(--panel3)' : avgEff>=75?'var(--green-bg)':avgEff>=55?'var(--watch-bg)':'var(--red-bg)', color: avgEff===null?'var(--muted)':avgEff>=75?'var(--green)':avgEff>=55?'var(--amber-ink)':'var(--red)', label:'Rata-rata Efisiensi', value:avgEff===null?'-':avgEff+'%', sub:'Target ≥ 75% · Line Assembly'})}
       ${kpiCard({icon:'users',tint: absenPct!==null && absenPct>5 ? 'var(--red-bg)':'var(--green-bg)', color: absenPct!==null && absenPct>5 ? 'var(--red)':'var(--green)', label:'Hadir / Tidak Hadir', value:fmtNum(totalPresent), unit:'/ '+fmtNum(totalAbsent), sub: absenPct===null?'Belum ada data':'Absensi '+fmtNum(absenPct,1)+'% · Semua Line'})}
@@ -1469,7 +1469,7 @@ async function buildDashboardHtml(period, refDate){
     ${top3Html}
 
     <h3 style="margin-top:22px;">Tren Output vs Target</h3>
-    <p class="sub" style="margin:0 0 4px;">${pNoun} · Line Assembly · garis putus-putus = Target</p>
+    <p class="sub" style="margin:0 0 4px;">${pNoun} · Line Assembly · garis putus-putus = Target Harian Penuh</p>
     <div class="chart-grid full">
       <div class="chart-box"><canvas id="trendChart_${uid}" height="80"></canvas></div>
     </div>
@@ -1554,7 +1554,7 @@ function renderTrendChart(canvasId, dailyTrend){
           borderWidth: 2,
         },
         {
-          label: 'Target',
+          label: 'Target Harian Penuh',
           data: dailyTrend.map(d=>d.target),
           borderColor: '#b3b7ae',
           borderDash: [5,4],
@@ -2019,10 +2019,10 @@ async function renderIeLineConfig(){
     </div>
     <div class="panel">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;">
-        <h2 style="margin:0;">Detail Proses per Line</h2>
+        <h2 style="margin:0;">Breakdown Proses per Line</h2>
         <button type="button" class="btn green sm" onclick="goToIeSub('skillmatrix')">Lihat Skill Matrix →</button>
       </div>
-      <p class="sub">Breakdown No. Proses / Nama Proses / SMV / Nama Operator / Nama Mesin per Style. Copy range dari Excel (kolom sesuai urutan itu), lalu paste di kotak bawah ini — sistem otomatis pisah per kolom &amp; baris. Simpan ulang untuk Line+Style yang sama akan menimpa breakdown lama.</p>
+      <p class="sub">Breakdown No. Proses / Nama Proses / SMV / Nama Mesin per Style — TANPA operator (operator dipasang di panel "Cocokkan Manpower" di bawah, biar ganti-ganti orang gampang tanpa perlu paste ulang breakdown). Copy range dari Excel (kolom sesuai urutan itu), lalu paste di kotak bawah ini. Simpan ulang untuk Line+Style yang sama akan menimpa SMV/Nama Mesin-nya, tapi operator yang sudah dipasang tetap aman selama nama prosesnya sama persis.</p>
       <div class="field-row">
         <div class="field"><label>Line</label>
           <select id="lpLine">${LINES.map(l=>`<option value="${l}">${l}</option>`).join('')}</select>
@@ -2030,8 +2030,8 @@ async function renderIeLineConfig(){
         <div class="field"><label>Style</label><input type="text" id="lpStyle" placeholder="harus sama dengan Style yang berjalan"></div>
       </div>
       <div class="field">
-        <label>Paste dari Excel (No. Proses, Nama Proses, SMV, Nama Operator, Nama Mesin)</label>
-        <textarea id="lpPaste" rows="6" placeholder="Contoh (paste langsung dari Excel):&#10;1&#9;Jahit Bahu&#9;0.35&#9;Siti&#9;Overlock&#10;2&#9;Obras Sisi&#9;0.42&#9;Budi&#9;Obras 5 Benang"></textarea>
+        <label>Paste dari Excel (No. Proses, Nama Proses, SMV, Nama Mesin)</label>
+        <textarea id="lpPaste" rows="6" placeholder="Contoh (paste langsung dari Excel):&#10;1&#9;Jahit Bahu&#9;0.35&#9;Overlock&#10;2&#9;Obras Sisi&#9;0.42&#9;Obras 5 Benang"></textarea>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
         <button type="button" class="btn ghost sm" id="lpParseBtn">Parse &amp; Preview</button>
@@ -2041,21 +2041,54 @@ async function renderIeLineConfig(){
       <p id="lpParseError" style="color:var(--red);font-size:12.5px;min-height:1em;"></p>
       <div class="tbl-wrap" id="lpPreviewWrap" style="display:none;">
         <table>
-          <thead><tr><th>No.</th><th>Nama Proses</th><th>SMV</th><th>Nama Operator</th><th>Nama Mesin</th></tr></thead>
+          <thead><tr><th>No.</th><th>Nama Proses</th><th>SMV</th><th>Nama Mesin</th></tr></thead>
           <tbody id="lpPreviewBody"></tbody>
         </table>
       </div>
-      <h3 style="margin-top:22px;">Breakdown Tersimpan</h3>
+    </div>
+
+    <div class="panel">
+      <h2>Database Manpower</h2>
+      <p class="sub">Master NIK + Nama, terpisah dari breakdown proses. Paste dari Excel (kolom: NIK, Nama) — paste ulang TIDAK menghapus data lama, cuma menambah yang baru / update nama kalau NIK-nya sudah ada.</p>
+      <div class="field">
+        <label>Paste dari Excel (NIK, Nama)</label>
+        <textarea id="mpPaste" rows="5" placeholder="Contoh (paste langsung dari Excel):&#10;10241546&#9;Siti Aminah&#10;10241547&#9;Budi Santoso"></textarea>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
+        <button type="button" class="btn ghost sm" id="mpParseBtn">Parse &amp; Preview</button>
+        <button type="button" class="btn primary sm" id="mpSaveBtn" disabled>Simpan</button>
+      </div>
+      <p id="mpParseError" style="color:var(--red);font-size:12.5px;min-height:1em;"></p>
+      <div class="tbl-wrap" id="mpPreviewWrap" style="display:none;">
+        <table>
+          <thead><tr><th>NIK</th><th>Nama</th></tr></thead>
+          <tbody id="mpPreviewBody"></tbody>
+        </table>
+      </div>
+      <h3 style="margin-top:22px;">Manpower Tersimpan (<span id="mpCount">0</span>)</h3>
+      <div class="field" style="max-width:280px;"><input type="text" id="mpSearch" placeholder="Cari NIK / nama..."></div>
+      <div class="tbl-wrap" style="max-height:320px;overflow-y:auto;">
+        <table>
+          <thead><tr><th>NIK</th><th>Nama</th><th></th></tr></thead>
+          <tbody id="mpListBody"><tr><td colspan="3" style="text-align:center;color:var(--muted);">Memuat...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Cocokkan Manpower ke Proses</h2>
+      <p class="sub">Pilih Line &amp; Style yang sama seperti di atas, lalu pasangkan siapa (dari Database Manpower) mengerjakan tiap proses. Ketik NIK atau nama di kotak pencarian, pilih dari saran, klik "Pasang".</p>
+      <datalist id="mpDatalist"></datalist>
       <div class="tbl-wrap">
         <table>
-          <thead><tr><th>No.</th><th>Nama Proses</th><th>SMV</th><th>Nama Operator</th><th>Nama Mesin</th></tr></thead>
-          <tbody id="lpSavedBody"><tr><td colspan="5" style="text-align:center;color:var(--muted);">Pilih Line &amp; Style dulu.</td></tr></tbody>
+          <thead><tr><th>No.</th><th>Nama Proses</th><th>SMV</th><th>Nama Mesin</th><th>Operator Terpasang</th><th>Cocokkan</th></tr></thead>
+          <tbody id="lpSavedBody"><tr><td colspan="6" style="text-align:center;color:var(--muted);">Pilih Line &amp; Style dulu.</td></tr></tbody>
         </table>
       </div>
       <h3 style="margin-top:22px;">Total SMV per Operator</h3>
       <div class="tbl-wrap">
         <table>
-          <thead><tr><th>Nama Operator/Mesin</th><th>Jumlah Proses</th><th>Total SMV</th></tr></thead>
+          <thead><tr><th>Nama Operator</th><th>Jumlah Proses</th><th>Total SMV</th></tr></thead>
           <tbody id="lpOperatorBody"><tr><td colspan="3" style="text-align:center;color:var(--muted);">-</td></tr></tbody>
         </table>
       </div>
@@ -2230,22 +2263,16 @@ async function renderIeLineConfig(){
 
   refreshTable();
 
-  // ---- Detail Proses per Line (paste dari Excel) ----
+  // ---- Breakdown Proses per Line (paste dari Excel, TANPA operator) ----
   let lpParsedRows = [];
+  let __manpowerList = [];
 
-  function parseExcelPaste(text){
+  function parseExcelPaste(text, colCount){
     return text.split(/\r\n|\n|\r/)
       .map(line => line.trim())
       .filter(line => line.length > 0)
       .map(line => line.split('\t').map(c => c.trim()))
-      .filter(cols => cols.length > 1 || cols[0])
-      .map(cols => ({
-        noProses: cols[0] || '',
-        namaProses: cols[1] || '',
-        smv: cols[2] || '',
-        namaOperator: cols[3] || '',
-        namaMesin: cols[4] || '',
-      }));
+      .filter(cols => cols.length > 1 || cols[0]);
   }
 
   function renderLpPreview(rows){
@@ -2255,14 +2282,19 @@ async function renderIeLineConfig(){
     if(!rows.length){ wrap.style.display = 'none'; saveBtn.disabled = true; return; }
     wrap.style.display = '';
     saveBtn.disabled = false;
-    body.innerHTML = rows.map((r,i)=>`
+    body.innerHTML = rows.map(r=>`
       <tr>
         <td class="num">${escapeHtml(r.noProses)}</td>
         <td>${escapeHtml(r.namaProses)}</td>
         <td class="num">${escapeHtml(r.smv)}</td>
-        <td>${escapeHtml(r.namaOperator)}</td>
         <td>${escapeHtml(r.namaMesin)}</td>
       </tr>`).join('');
+  }
+
+  function refreshMpDatalist(){
+    const dl = document.getElementById('mpDatalist');
+    if(!dl) return;
+    dl.innerHTML = __manpowerList.map(m=>`<option value="${escapeHtml(m.nik)} - ${escapeHtml(m.nama)}"></option>`).join('');
   }
 
   async function loadLpSaved(){
@@ -2271,25 +2303,32 @@ async function renderIeLineConfig(){
     const line = document.getElementById('lpLine').value;
     const style = document.getElementById('lpStyle').value.trim();
     if(!style){
-      body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted);">Isi Style dulu untuk lihat breakdown tersimpan.</td></tr>';
+      body.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);">Isi Style dulu untuk lihat breakdown tersimpan.</td></tr>';
       opBody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--muted);">-</td></tr>';
       return;
     }
-    body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted);">Memuat...</td></tr>';
+    body.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);">Memuat...</td></tr>';
     try{
       const list = await apiGet('/line-processes?line='+encodeURIComponent(line)+'&style='+encodeURIComponent(style));
       if(!list.length){
-        body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted);">Belum ada breakdown tersimpan untuk Line+Style ini.</td></tr>';
+        body.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);">Belum ada breakdown tersimpan untuk Line+Style ini.</td></tr>';
         opBody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--muted);">-</td></tr>';
         return;
       }
       body.innerHTML = list.map(p=>`
-        <tr>
+        <tr data-id="${p.id}">
           <td class="num">${fmtNum(p.no_proses)}</td>
           <td>${escapeHtml(p.nama_proses||'-')}</td>
           <td class="num">${fmtNum(p.smv,2)}</td>
-          <td>${escapeHtml(p.nama_operator||'-')}</td>
           <td>${escapeHtml(p.nama_mesin||'-')}</td>
+          <td>${p.nama_operator ? escapeHtml(p.nama_operator) : '<span style="color:var(--muted);">Belum dipasang</span>'}</td>
+          <td>
+            <div style="display:flex;gap:4px;flex-wrap:wrap;">
+              <input type="text" list="mpDatalist" class="lp-match-input" data-id="${p.id}" placeholder="cari NIK/nama" style="padding:6px 8px;border:1px solid var(--line);border-radius:8px;font-size:12px;width:150px;">
+              <button type="button" class="btn ghost sm lp-assign-btn" data-id="${p.id}">Pasang</button>
+              ${p.nik ? `<button type="button" class="btn danger sm lp-unassign-btn" data-id="${p.id}">Lepas</button>` : ''}
+            </div>
+          </td>
         </tr>`).join('');
       const summary = summarizeByOperator(list);
       opBody.innerHTML = summary.map(s=>`
@@ -2298,8 +2337,36 @@ async function renderIeLineConfig(){
           <td class="num">${fmtNum(s.count)}</td>
           <td class="num">${fmtNum(s.total,2)}</td>
         </tr>`).join('');
+
+      body.querySelectorAll('.lp-assign-btn').forEach(btn=>{
+        btn.addEventListener('click', async ()=>{
+          const id = btn.dataset.id;
+          const input = body.querySelector('.lp-match-input[data-id="'+id+'"]');
+          const val = (input.value||'').trim();
+          const nik = val.split(' - ')[0].trim();
+          const match = __manpowerList.find(m=>m.nik===nik);
+          if(!match){ showToast('Pilih NIK/nama dari daftar saran dulu.'); return; }
+          btn.disabled = true;
+          try{
+            await apiPatch('/line-processes', { id, nik: match.nik });
+            showToast('Dipasang: '+match.nama);
+            loadLpSaved();
+          }catch(err){ showToast('Gagal: '+err.message); btn.disabled = false; }
+        });
+      });
+      body.querySelectorAll('.lp-unassign-btn').forEach(btn=>{
+        btn.addEventListener('click', async ()=>{
+          const id = btn.dataset.id;
+          btn.disabled = true;
+          try{
+            await apiPatch('/line-processes', { id, nik: null });
+            showToast('Operator dilepas dari proses ini.');
+            loadLpSaved();
+          }catch(err){ showToast('Gagal: '+err.message); btn.disabled = false; }
+        });
+      });
     }catch(err){
-      body.innerHTML = '<tr><td colspan="5" style="color:var(--red);">Gagal memuat: '+err.message+'</td></tr>';
+      body.innerHTML = '<tr><td colspan="6" style="color:var(--red);">Gagal memuat: '+err.message+'</td></tr>';
       opBody.innerHTML = '<tr><td colspan="3" style="color:var(--red);">Gagal memuat.</td></tr>';
     }
   }
@@ -2309,7 +2376,8 @@ async function renderIeLineConfig(){
     errEl.textContent = '';
     const text = document.getElementById('lpPaste').value;
     if(!text.trim()){ errEl.textContent = 'Paste data dari Excel dulu.'; renderLpPreview([]); return; }
-    lpParsedRows = parseExcelPaste(text);
+    const cols = parseExcelPaste(text);
+    lpParsedRows = cols.map(c=>({ noProses:c[0]||'', namaProses:c[1]||'', smv:c[2]||'', namaMesin:c[3]||'' }));
     if(!lpParsedRows.length){ errEl.textContent = 'Tidak ada baris yang bisa dibaca. Pastikan paste langsung dari Excel (antar kolom dipisah Tab).'; }
     renderLpPreview(lpParsedRows);
   });
@@ -2325,7 +2393,7 @@ async function renderIeLineConfig(){
     saveBtn.disabled = true; saveBtn.textContent = 'Menyimpan...';
     try{
       await apiPost('/line-processes', { line, style, rows: lpParsedRows });
-      showToast('Breakdown proses line '+line+' tersimpan ('+lpParsedRows.length+' baris).');
+      showToast('Breakdown proses line '+line+' tersimpan ('+lpParsedRows.length+' baris). Operator yang sudah dipasang sebelumnya (nama proses sama) tetap dipertahankan.');
       document.getElementById('lpPaste').value = '';
       lpParsedRows = [];
       renderLpPreview([]);
@@ -2338,7 +2406,7 @@ async function renderIeLineConfig(){
     const line = document.getElementById('lpLine').value;
     const style = document.getElementById('lpStyle').value.trim();
     if(!style){ showToast('Isi Style dulu.'); return; }
-    if(!confirm('Hapus semua breakdown proses untuk Line '+line+' — Style "'+style+'"?')) return;
+    if(!confirm('Hapus semua breakdown proses untuk Line '+line+' — Style "'+style+'"? Ini juga akan menghapus semua pasangan operator di style ini.')) return;
     try{
       await apiDelete('/line-processes?line='+encodeURIComponent(line)+'&style='+encodeURIComponent(style));
       showToast('Breakdown dihapus.');
@@ -2348,7 +2416,96 @@ async function renderIeLineConfig(){
 
   document.getElementById('lpLine').addEventListener('change', loadLpSaved);
   document.getElementById('lpStyle').addEventListener('change', loadLpSaved);
+
+  // ---- Database Manpower (NIK + Nama, paste dari Excel, upsert) ----
+  let mpParsedRows = [];
+
+  function renderMpPreview(rows){
+    const wrap = document.getElementById('mpPreviewWrap');
+    const body = document.getElementById('mpPreviewBody');
+    const saveBtn = document.getElementById('mpSaveBtn');
+    if(!rows.length){ wrap.style.display = 'none'; saveBtn.disabled = true; return; }
+    wrap.style.display = '';
+    saveBtn.disabled = false;
+    body.innerHTML = rows.map(r=>`
+      <tr>
+        <td>${escapeHtml(r.nik)}</td>
+        <td>${escapeHtml(r.nama)}</td>
+      </tr>`).join('');
+  }
+
+  function renderMpList(){
+    const body = document.getElementById('mpListBody');
+    const countEl = document.getElementById('mpCount');
+    const search = (document.getElementById('mpSearch').value||'').trim().toLowerCase();
+    const filtered = search
+      ? __manpowerList.filter(m=>m.nik.toLowerCase().includes(search) || m.nama.toLowerCase().includes(search))
+      : __manpowerList;
+    countEl.textContent = fmtNum(__manpowerList.length);
+    if(!filtered.length){ body.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--muted);">Tidak ada data.</td></tr>'; return; }
+    body.innerHTML = filtered.map(m=>`
+      <tr>
+        <td>${escapeHtml(m.nik)}</td>
+        <td>${escapeHtml(m.nama)}</td>
+        <td><button type="button" class="btn danger sm mp-delete-btn" data-nik="${escapeHtml(m.nik)}">Hapus</button></td>
+      </tr>`).join('');
+    body.querySelectorAll('.mp-delete-btn').forEach(btn=>{
+      btn.addEventListener('click', async ()=>{
+        if(!confirm('Hapus manpower NIK '+btn.dataset.nik+' dari database?')) return;
+        try{
+          await apiDelete('/manpower?nik='+encodeURIComponent(btn.dataset.nik));
+          showToast('Manpower dihapus.');
+          await loadManpowerList();
+        }catch(err){ showToast('Gagal: '+err.message); }
+      });
+    });
+  }
+
+  async function loadManpowerList(){
+    const body = document.getElementById('mpListBody');
+    body.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--muted);">Memuat...</td></tr>';
+    try{
+      __manpowerList = await apiGet('/manpower');
+      renderMpList();
+      refreshMpDatalist();
+    }catch(err){
+      body.innerHTML = '<tr><td colspan="3" style="color:var(--red);">Gagal memuat: '+err.message+'</td></tr>';
+    }
+  }
+
+  document.getElementById('mpParseBtn').addEventListener('click', ()=>{
+    const errEl = document.getElementById('mpParseError');
+    errEl.textContent = '';
+    const text = document.getElementById('mpPaste').value;
+    if(!text.trim()){ errEl.textContent = 'Paste data dari Excel dulu.'; renderMpPreview([]); return; }
+    const cols = parseExcelPaste(text);
+    mpParsedRows = cols.map(c=>({ nik:c[0]||'', nama:c[1]||'' })).filter(r=>r.nik && r.nama);
+    if(!mpParsedRows.length){ errEl.textContent = 'Tidak ada baris valid (NIK & Nama wajib ada). Pastikan paste langsung dari Excel.'; }
+    renderMpPreview(mpParsedRows);
+  });
+
+  document.getElementById('mpSaveBtn').addEventListener('click', async ()=>{
+    const errEl = document.getElementById('mpParseError');
+    errEl.textContent = '';
+    if(!mpParsedRows.length){ errEl.textContent = 'Belum ada data hasil parse.'; return; }
+    const saveBtn = document.getElementById('mpSaveBtn');
+    saveBtn.disabled = true; saveBtn.textContent = 'Menyimpan...';
+    try{
+      await apiPost('/manpower', { rows: mpParsedRows });
+      showToast(mpParsedRows.length+' manpower tersimpan.');
+      document.getElementById('mpPaste').value = '';
+      mpParsedRows = [];
+      renderMpPreview([]);
+      await loadManpowerList();
+    }catch(err){ errEl.textContent = 'Gagal: '+err.message; }
+    finally{ saveBtn.disabled = false; saveBtn.textContent = 'Simpan'; }
+  });
+
+  document.getElementById('mpSearch').addEventListener('input', renderMpList);
+
+  loadManpowerList();
 }
+
 
 // ---------- Skill Matrix (grade operator dari total SMV proses yg dikuasai) ----------
 async function renderIeSkillMatrix(){
