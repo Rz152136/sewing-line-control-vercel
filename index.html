@@ -2352,7 +2352,7 @@ async function renderIeLineConfig(){
       btn.addEventListener('click', async ()=>{
         if(!confirm('Hapus manpower NIK '+btn.dataset.nik+' dari database?')) return;
         try{
-          await apiDelete('/manpower?nik='+encodeURIComponent(btn.dataset.nik));
+          await apiDelete('/line-processes?table=manpower&nik='+encodeURIComponent(btn.dataset.nik));
           showToast('Manpower dihapus.');
           await loadManpowerList();
         }catch(err){ showToast('Gagal: '+err.message); }
@@ -2364,7 +2364,7 @@ async function renderIeLineConfig(){
     const body = document.getElementById('mpListBody');
     body.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--muted);">Memuat...</td></tr>';
     try{
-      __manpowerList = await apiGet('/manpower');
+      __manpowerList = await apiGet('/line-processes?table=manpower');
       renderMpList();
     }catch(err){
       body.innerHTML = '<tr><td colspan="3" style="color:var(--red);">Gagal memuat: '+err.message+'</td></tr>';
@@ -2389,7 +2389,7 @@ async function renderIeLineConfig(){
     const saveBtn = document.getElementById('mpSaveBtn');
     saveBtn.disabled = true; saveBtn.textContent = 'Menyimpan...';
     try{
-      await apiPost('/manpower', { rows: mpParsedRows });
+      await apiPost('/line-processes?table=manpower', { rows: mpParsedRows });
       showToast(mpParsedRows.length+' manpower tersimpan.');
       document.getElementById('mpPaste').value = '';
       mpParsedRows = [];
@@ -2439,7 +2439,7 @@ async function renderIeOpBreakdown(){
 
   async function loadManpowerForDatalist(){
     try{
-      obManpowerList = await apiGet('/manpower');
+      obManpowerList = await apiGet('/line-processes?table=manpower');
       document.getElementById('obDatalist').innerHTML = obManpowerList.map(m=>`<option value="${escapeHtml(m.nik)} - ${escapeHtml(m.nama)}"></option>`).join('');
     }catch(err){ /* datalist kosong kalau gagal, tidak fatal -- tombol Pasang akan tetap menolak input yang tidak cocok */ }
   }
