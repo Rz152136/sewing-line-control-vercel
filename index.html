@@ -707,7 +707,7 @@ function renderLineDetailPage(r){
 
     <div class="ld-grid">
       <div class="ld-stat"><div class="lbl">Output Aktual</div><div class="val">${fmtNum(r.outputActual)}</div></div>
-      <div class="ld-stat"><div class="lbl">Target Harian Penuh</div><div class="val">${fmtNum(r.targetFull)}</div></div>
+      <div class="ld-stat"><div class="lbl">Target</div><div class="val">${fmtNum(r.targetFull)}</div></div>
       <div class="ld-stat"><div class="lbl">Hadir / Absen</div><div class="val">${fmtNum(r.present)}/${fmtNum(r.absent)}</div></div>
     </div>
 
@@ -762,7 +762,7 @@ function renderLineDetailPage(r){
 
 // ---------- Balance Qty (BLC) & Forecast Target Harian/Mingguan/Bulanan ----------
 // Catatan penting: Target Harian/Mingguan/Bulanan dihitung dari KAPASITAS
-// harian line saat ini (Target Harian Penuh, dari SMV/MP/Jam Kerja style yang
+// harian line saat ini (Target, dari SMV/MP/Jam Kerja style yang
 // aktif sekarang) -- sengaja TIDAK dikaitkan ke Plan Finish, karena Plan
 // Finish melekat ke style yang berjalan dan bisa berganti beberapa kali
 // sebulan. Asumsi hari kerja: Senin-Sabtu (Minggu libur), 6 hari kerja/minggu,
@@ -1244,10 +1244,10 @@ async function buildDashboardHtml(period, refDate){
   allLines.forEach(l => perLine[l] = { line:l, target:0, targetFull:0, output:0, present:0, absent:0, mesin:0, hasConfig:false, style:'', lineType:'assembly' });
 
   const nowMs = Date.now();
-  // Target berjalan (prorata jam) -- dipakai untuk Efisiensi, bukan target harian penuh.
+  // Target berjalan (prorata jam) -- dipakai untuk Efisiensi, bukan Target.
   // Contoh: shift mulai 08:00, WH 7 jam, target harian 550. Jam 11:00 (3 jam berjalan)
   // target-s.d.-sekarang = 550 * (3/7) ~ 235, bukan 550. Kalau baris tidak punya
-  // Jam Mulai Shift, fallback ke target harian penuh (perilaku lama, tidak berubah).
+  // Jam Mulai Shift, fallback ke Target (perilaku lama, tidak berubah).
   function targetToDate(c, date, fullTarget){
     if(!c.shift_start || !(c.wh>0)) return fullTarget;
     const parts = String(c.shift_start).split(':');
@@ -1455,7 +1455,7 @@ async function buildDashboardHtml(period, refDate){
 
     <div class="kpis">
       ${kpiCard({icon:'box',tint:'var(--accent-soft)',color:'var(--accent)',label:'Output Aktual',value:fmtNum(totalOutputActual),unit:'unit',sub:'Line Assembly · '+pNoun})}
-      ${kpiCard({icon:'target',tint:'var(--panel3)',color:'var(--accent)',label:'Target Harian Penuh',value:fmtNum(totalTargetFull),unit:'unit',sub:'Target 1 hari penuh · Line Assembly'})}
+      ${kpiCard({icon:'target',tint:'var(--panel3)',color:'var(--accent)',label:'Target',value:fmtNum(totalTargetFull),unit:'unit',sub:'Target 1 hari penuh · Line Assembly'})}
       ${kpiCard({icon:'trend',tint: blcProduksi>=0?'var(--green-bg)':'var(--red-bg)', color: blcProduksi>=0?'var(--green)':'var(--red)', label:'BLC Produksi', value:(blcProduksi>0?'+':'')+fmtNum(blcProduksi), unit:'unit', sub:'Output − Target · '+pNoun+' · Line Assembly'})}
       ${kpiCard({icon:'shield',tint: avgEff===null? 'var(--panel3)' : avgEff>=75?'var(--green-bg)':avgEff>=55?'var(--watch-bg)':'var(--red-bg)', color: avgEff===null?'var(--muted)':avgEff>=75?'var(--green)':avgEff>=55?'var(--amber-ink)':'var(--red)', label:'Rata-rata Efisiensi', value:avgEff===null?'-':avgEff+'%', sub:'Target ≥ 75% · Line Assembly'})}
       ${kpiCard({icon:'users',tint: absenPct!==null && absenPct>5 ? 'var(--red-bg)':'var(--green-bg)', color: absenPct!==null && absenPct>5 ? 'var(--red)':'var(--green)', label:'Hadir / Tidak Hadir', value:fmtNum(totalPresent), unit:'/ '+fmtNum(totalAbsent), sub: absenPct===null?'Belum ada data':'Absensi '+fmtNum(absenPct,1)+'% · Semua Line'})}
@@ -1469,7 +1469,7 @@ async function buildDashboardHtml(period, refDate){
     ${top3Html}
 
     <h3 style="margin-top:22px;">Tren Output vs Target</h3>
-    <p class="sub" style="margin:0 0 4px;">${pNoun} · Line Assembly · garis putus-putus = Target Harian Penuh</p>
+    <p class="sub" style="margin:0 0 4px;">${pNoun} · Line Assembly · garis putus-putus = Target</p>
     <div class="chart-grid full">
       <div class="chart-box"><canvas id="trendChart_${uid}" height="80"></canvas></div>
     </div>
@@ -1554,7 +1554,7 @@ function renderTrendChart(canvasId, dailyTrend){
           borderWidth: 2,
         },
         {
-          label: 'Target Harian Penuh',
+          label: 'Target',
           data: dailyTrend.map(d=>d.target),
           borderColor: '#b3b7ae',
           borderDash: [5,4],
