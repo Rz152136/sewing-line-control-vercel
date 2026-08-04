@@ -210,7 +210,7 @@
   .donut-wrap{display:flex;flex-direction:column;align-items:center;}
   .donut-center{font-family:var(--disp);font-weight:800;font-size:20px;color:var(--ink);}
 
-  #loginScreen{position:fixed;inset:0;background:radial-gradient(circle at top right, rgba(92,170,255,.18), transparent 22%), radial-gradient(circle at left center, rgba(41,55,97,.30), transparent 18%), linear-gradient(140deg,#08162f 0%,#091f39 42%,#0f2746 100%);display:flex;align-items:center;justify-content:center;z-index:1000;padding:24px;overflow:auto;animation:pageFadeIn .85s ease forwards;}
+  #loginScreen{position:fixed;inset:0;background:radial-gradient(circle at top right, rgba(92,170,255,.18), transparent 22%), radial-gradient(circle at left center, rgba(41,55,97,.30), transparent 18%), linear-gradient(140deg,#08162f 0%,#091f39 42%,#0f2746 100%);display:flex;align-items:center;justify-content:center;z-index:1000;padding:calc(env(safe-area-inset-top, 24px) + 24px) 24px 24px;overflow:auto;animation:pageFadeIn .85s ease forwards;}
   #loginScreen::before{content:'';position:absolute;inset:0;background-image:linear-gradient(180deg,rgba(255,255,255,.08),transparent 16%,rgba(255,255,255,.05) 48%,transparent 84%,rgba(255,255,255,.08));pointer-events:none;}
   #loginScreen .login-shell{position:relative;display:grid;grid-template-columns:1.25fr 1fr;gap:28px;max-width:980px;width:100%;align-items:center;}
   #loginScreen .left-panel{position:relative;display:flex;flex-direction:column;justify-content:center;gap:22px;padding:42px 36px;min-height:420px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.14);border-radius:34px;backdrop-filter:blur(20px);box-shadow:0 28px 70px rgba(0,0,0,.18);overflow:hidden;}
@@ -249,7 +249,7 @@
   #loginScreen #loginError{color:#ffb3ba;font-size:13px;margin:0;min-height:1.2em;}
   @media (max-width:960px){#loginScreen .login-shell{grid-template-columns:1fr;}}
   @media (max-width:700px){#loginScreen{padding:16px;}#loginScreen .left-panel{padding:28px 22px;min-height:auto;}#loginScreen .glass-panel{padding:28px 22px;}#loginScreen .left-panel h1{font-size:34px;}#loginScreen .brand-mark{width:60px;height:60px;font-size:22px;}#loginScreen .left-panel p{font-size:14px;}}
-  @media (max-width:520px){#loginScreen .left-panel{border-radius:28px;}#loginScreen .glass-panel{border-radius:28px;}#loginScreen .notice-row{flex-direction:column;align-items:flex-start;} }
+  @media (max-width:520px){#loginScreen{align-items:flex-start;justify-content:flex-start;padding:calc(env(safe-area-inset-top, 24px) + 24px) 16px 24px;min-height:100vh;}#loginScreen .left-panel{border-radius:28px;}#loginScreen .glass-panel{border-radius:28px;}#loginScreen .notice-row{flex-direction:column;align-items:flex-start;} }
   @keyframes pageFadeIn{from{opacity:0;transform:scale(.99);}to{opacity:1;transform:scale(1);}}
   @keyframes panelRise{from{opacity:0;transform:translateY(28px);}to{opacity:1;transform:translateY(0);} }
   @keyframes glowFloat{from{transform:translate(0,-2px) scale(1);}to{transform:translate(4px,8px) scale(1.04);} }
@@ -1194,7 +1194,12 @@ function kpiCard({icon,tint,color,label,value,unit}){
 // ---------- Auth & role state ----------
 let sbClient;
 try {
-  sbClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  sbClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: {
+      persistSession: false,
+      storage: sessionStorage,
+    }
+  });
 } catch (e) {
   const box = document.getElementById('fatalError');
   box.style.display = 'block';
