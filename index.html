@@ -76,10 +76,10 @@
         <li>Telusuri dashboard di tanggal-tanggal sebelumnya kapan saja</li>
       </ul>
       <div class="login-kpi-grid">
-        <div class="login-kpi"><div class="login-kpi-lbl">Output Hari Ini</div><div class="login-kpi-val" data-base="7000" data-range="1000" data-suffix=""  data-decimals="0">0</div></div>
-        <div class="login-kpi"><div class="login-kpi-lbl">Efisiensi Rata-rata</div><div class="login-kpi-val" data-base="80" data-range="15" data-suffix="%" data-decimals="0">0</div></div>
-        <div class="login-kpi"><div class="login-kpi-lbl">Line Aktif</div><div class="login-kpi-val" data-base="14" data-range="5" data-suffix="" data-decimals="0">0</div></div>
-        <div class="login-kpi"><div class="login-kpi-lbl">Operator</div><div class="login-kpi-val" data-base="480" data-range="100" data-suffix="" data-decimals="0">0</div></div>
+        <div class="login-kpi"><div class="login-kpi-lbl">Output Hari Ini</div><div class="login-kpi-val" data-base="1450" data-range="450" data-suffix=""  data-decimals="0">0</div></div>
+        <div class="login-kpi"><div class="login-kpi-lbl">Efisiensi Rata-rata</div><div class="login-kpi-val" data-base="78" data-range="8" data-suffix="%" data-decimals="0">0</div></div>
+        <div class="login-kpi"><div class="login-kpi-lbl">Line Aktif</div><div class="login-kpi-val" data-base="13" data-range="2" data-suffix="" data-decimals="0">0</div></div>
+        <div class="login-kpi"><div class="login-kpi-lbl">Operator Terpasang</div><div class="login-kpi-val" data-base="220" data-range="30" data-suffix="" data-decimals="0">0</div></div>
       </div>
     </div>
   </div>
@@ -91,10 +91,10 @@
         <p class="login-brand-expand">Real-time Industrial System for Excellence</p>
         <p class="login-brand-tagline">Production Monitoring System for Garment Manufacturing</p>
         <div class="login-kpi-grid login-kpi-grid-mobile">
-          <div class="login-kpi"><div class="login-kpi-lbl">Output</div><div class="login-kpi-val" data-base="7000" data-range="1000" data-suffix="" data-decimals="0">0</div></div>
-          <div class="login-kpi"><div class="login-kpi-lbl">Efisiensi</div><div class="login-kpi-val" data-base="80" data-range="15" data-suffix="%" data-decimals="0">0</div></div>
-          <div class="login-kpi"><div class="login-kpi-lbl">Line Aktif</div><div class="login-kpi-val" data-base="14" data-range="5" data-suffix="" data-decimals="0">0</div></div>
-          <div class="login-kpi"><div class="login-kpi-lbl">Operator</div><div class="login-kpi-val" data-base="480" data-range="100" data-suffix="" data-decimals="0">0</div></div>
+          <div class="login-kpi"><div class="login-kpi-lbl">Output</div><div class="login-kpi-val" data-base="1450" data-range="450" data-suffix="" data-decimals="0">0</div></div>
+          <div class="login-kpi"><div class="login-kpi-lbl">Efisiensi</div><div class="login-kpi-val" data-base="78" data-range="8" data-suffix="%" data-decimals="0">0</div></div>
+          <div class="login-kpi"><div class="login-kpi-lbl">Line Aktif</div><div class="login-kpi-val" data-base="13" data-range="2" data-suffix="" data-decimals="0">0</div></div>
+          <div class="login-kpi"><div class="login-kpi-lbl">Operator</div><div class="login-kpi-val" data-base="220" data-range="30" data-suffix="" data-decimals="0">0</div></div>
         </div>
       </div>
       <h2>RISE</h2>
@@ -186,6 +186,11 @@
 
   <!-- ======================= TAMPILAN IE ======================= -->
   <section id="view-ie" class="hidden">
+    <button type="button" class="subnav-toggle" id="ieSubnavToggle" aria-label="Buka menu">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      <span id="ieSubnavToggleLabel">Dashboard</span>
+    </button>
+    <div class="subnav-backdrop" id="ieSubnavBackdrop"></div>
     <nav class="subnav" id="ieSubnav">
       <button data-sub="dashboard" class="active">Dashboard</button>
       <button data-sub="lineconfig">Variabel Line</button>
@@ -1285,14 +1290,14 @@ async function buildDashboardHtml(period, refDate){
     <h3 style="margin-top:22px;">Tren Output vs Target</h3>
     <p class="sub" style="margin:0 0 4px;">${pNoun} · Line Assembly · garis putus-putus = Target Harian Penuh</p>
     <div class="chart-grid full">
-      <div class="chart-box"><canvas id="trendChart_${uid}" height="80"></canvas></div>
+      <div class="chart-box"><div class="chart-canvas-inner"><canvas id="trendChart_${uid}"></canvas></div></div>
     </div>
 
     <div class="chart-grid">
       <div class="chart-box">
         <h3 style="margin:0 0 2px;">Efisiensi per Line</h3>
-        <p class="sub" style="margin:0 0 10px;">Target garis putus-putus di 75% · semua line ditampilkan (Assembly &amp; Preparation)</p>
-        <canvas id="effChart_${uid}" height="115"></canvas>
+        <p class="sub" style="margin:0 0 10px;">Target garis putus-putus di 75% · semua line ditampilkan (Assembly &amp; Preparation) · geser kalau line banyak</p>
+        <div class="chart-scroll-x"><div class="chart-canvas-inner"><canvas id="effChart_${uid}"></canvas></div></div>
       </div>
       <div class="chart-box">
         <h3 style="margin:0 0 2px;">Ringkasan Status</h3>
@@ -1331,10 +1336,10 @@ async function buildDashboardHtml(period, refDate){
         <tbody>${mcTableRows || `<tr><td colspan="${isIE?7:5}" style="text-align:center;color:var(--muted);">Belum ada data.</td></tr>`}</tbody>
       </table>
     </div>
-    ${isIE ? `<div class="chart-box"><canvas id="mcChart_${uid}" height="90"></canvas></div>` : ''}
+    ${isIE ? `<div class="chart-box"><div class="chart-scroll-x"><div class="chart-canvas-inner"><canvas id="mcChart_${uid}"></canvas></div></div></div>` : ''}
 
     <h3 style="margin-top:20px;">Grafik Productivity per Line</h3>
-    <div class="chart-box"><canvas id="prodChart_${uid}" height="90"></canvas></div>
+    <div class="chart-box"><div class="chart-scroll-x"><div class="chart-canvas-inner"><canvas id="prodChart_${uid}"></canvas></div></div></div>
   `;
   __lineDetailRows = {};
   rows.forEach(r=>{ __lineDetailRows[r.line] = r; });
@@ -1381,17 +1386,29 @@ function renderTrendChart(canvasId, dailyTrend){
       ]
     },
     options: {
-      responsive:true,
+      responsive:true, maintainAspectRatio:false,
       plugins:{ legend:{ display:true, position:'bottom', labels:{ boxWidth:10, font:{ size:11 } } } },
       scales:{ y:{ beginAtZero:true, grid:{ color:'#e8e9e7' } }, x:{ grid:{ display:false } } }
     }
   });
 }
 
+// Chart bar dengan kategori per-line (Efisiensi/MC Shift/Productivity) diberi
+// lebar minimum proporsional ke jumlah line, dibungkus .chart-scroll-x --
+// jadi kalau line-nya banyak & layarnya sempit (mobile), usernya geser
+// horizontal buat baca label, bukan semua batang keimpit jadi tidak terbaca.
+function applyScrollableBarWidth(ctx, count){
+  const wrap = ctx.parentElement; // .chart-canvas-inner
+  if(!wrap) return;
+  const minWidth = Math.max(320, count*48);
+  wrap.style.minWidth = minWidth+'px';
+}
+
 function renderEffChart(canvasId, rows){
   const ctx = document.getElementById(canvasId);
   if(!ctx || !window.Chart) return;
   const labelled = rows.filter(r=>r.target>0 || r.outputActual>0);
+  applyScrollableBarWidth(ctx, labelled.length);
   new Chart(ctx, {
     type: 'bar',
     data: {
@@ -1410,7 +1427,7 @@ function renderEffChart(canvasId, rows){
       }]
     },
     options: {
-      responsive:true, plugins:{ legend:{ display:false } },
+      responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:false } },
       scales:{ y:{ beginAtZero:true, grid:{ color:'#e8e9e7' } }, x:{ grid:{ display:false } } }
     }
   });
@@ -1429,7 +1446,7 @@ function renderStatusDonut(canvasId, counts){
         borderWidth: 0,
       }]
     },
-    options: { responsive:true, cutout:'72%', plugins:{ legend:{ display:false }, tooltip:{ enabled:true } } }
+    options: { responsive:true, maintainAspectRatio:false, cutout:'72%', plugins:{ legend:{ display:false }, tooltip:{ enabled:true } } }
   });
 }
 
@@ -1438,6 +1455,7 @@ function renderMcShiftChart(canvasId, rows){
   if(!ctx || !window.Chart) return;
   const labelled = rows.filter(r=>r.mcShift8h>0);
   if(!labelled.length) return;
+  applyScrollableBarWidth(ctx, labelled.length);
   new Chart(ctx, {
     type: 'bar',
     data: {
@@ -1451,7 +1469,7 @@ function renderMcShiftChart(canvasId, rows){
       }]
     },
     options: {
-      responsive:true, plugins:{ legend:{ display:false } },
+      responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:false } },
       scales:{ y:{ beginAtZero:true, grid:{ color:'#e8e9e7' } }, x:{ grid:{ display:false } } }
     }
   });
@@ -1462,6 +1480,7 @@ function renderProductivityChart(canvasId, rows){
   if(!ctx || !window.Chart) return;
   const labelled = rows.filter(r=>r.productivity!==null);
   if(!labelled.length) return;
+  applyScrollableBarWidth(ctx, labelled.length);
   new Chart(ctx, {
     type: 'bar',
     data: {
@@ -1475,7 +1494,7 @@ function renderProductivityChart(canvasId, rows){
       }]
     },
     options: {
-      responsive:true, plugins:{ legend:{ display:false } },
+      responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:false } },
       scales:{ y:{ beginAtZero:true, grid:{ color:'#e8e9e7' } }, x:{ grid:{ display:false } } }
     }
   });
@@ -1675,12 +1694,35 @@ async function renderSupervisorView(){
 // ================================================================
 function initIeView(){
   const nav = document.getElementById('ieSubnav');
+  const toggleBtn = document.getElementById('ieSubnavToggle');
+  const toggleLabel = document.getElementById('ieSubnavToggleLabel');
+  const backdrop = document.getElementById('ieSubnavBackdrop');
+
+  function closeSidebar(){
+    nav.classList.remove('open');
+    backdrop.classList.remove('show');
+  }
+  function openSidebar(){
+    nav.classList.add('open');
+    backdrop.classList.add('show');
+  }
+
+  if(!toggleBtn.dataset.bound){
+    toggleBtn.dataset.bound = '1';
+    toggleBtn.addEventListener('click', ()=>{
+      nav.classList.contains('open') ? closeSidebar() : openSidebar();
+    });
+    backdrop.addEventListener('click', closeSidebar);
+  }
+
   if(!nav.dataset.bound){
     nav.dataset.bound = '1';
     nav.addEventListener('click', (e)=>{
       if(e.target.tagName !== 'BUTTON') return;
       const sub = e.target.dataset.sub;
       document.querySelectorAll('#ieSubnav button').forEach(b=>b.classList.toggle('active', b===e.target));
+      toggleLabel.textContent = e.target.textContent;
+      closeSidebar();
       ['dashboard','lineconfig','opbreakdown','skillmatrix','data','users'].forEach(s=>{
         document.getElementById('ie-'+s).classList.toggle('hidden', s!==sub);
       });
@@ -1694,6 +1736,8 @@ function initIeView(){
   }
   // reset ke tab dashboard tiap kali masuk/login ulang
   document.querySelectorAll('#ieSubnav button').forEach(b=>b.classList.toggle('active', b.dataset.sub==='dashboard'));
+  toggleLabel.textContent = 'Dashboard';
+  closeSidebar();
   ['dashboard','lineconfig','opbreakdown','skillmatrix','data','users'].forEach(s=>{
     document.getElementById('ie-'+s).classList.toggle('hidden', s!=='dashboard');
   });
