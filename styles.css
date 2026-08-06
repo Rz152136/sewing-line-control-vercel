@@ -155,6 +155,37 @@
   .subnav button{background:none;border:none;padding:10px 14px;font-size:13px;font-weight:700;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;font-family:var(--body);}
   .subnav button.active{color:var(--accent);border-bottom-color:var(--accent);}
 
+  /* ---- Navigasi tab IE jadi sidebar buka-tutup di mobile ---- */
+  .subnav-toggle{display:none;}
+  .subnav-backdrop{display:none;}
+  @media (max-width:760px){
+    .subnav-toggle{
+      display:flex;align-items:center;gap:10px;width:100%;text-align:left;
+      background:var(--panel);border:1px solid var(--line);border-radius:12px;
+      padding:12px 14px;margin-bottom:16px;cursor:pointer;font-family:var(--body);
+    }
+    .subnav-toggle svg{width:18px;height:18px;color:var(--accent);flex-shrink:0;}
+    .subnav-toggle span{font-size:13.5px;font-weight:700;color:var(--ink);}
+    .subnav-backdrop{
+      display:block;position:fixed;inset:0;background:rgba(15,22,18,.45);
+      z-index:1400;opacity:0;pointer-events:none;transition:opacity .2s ease;
+    }
+    .subnav-backdrop.show{opacity:1;pointer-events:auto;}
+    .subnav{
+      position:fixed;top:0;left:0;bottom:0;width:250px;max-width:78vw;
+      background:var(--panel);z-index:1500;flex-direction:column;flex-wrap:nowrap;
+      border-bottom:none;box-shadow:8px 0 28px -12px rgba(15,22,18,.35);
+      transform:translateX(-100%);transition:transform .25s ease;
+      overflow-y:auto;padding:18px 0;gap:0;margin-bottom:0;
+    }
+    .subnav.open{transform:translateX(0);}
+    .subnav button{
+      text-align:left;padding:13px 20px;border-bottom:none;
+      border-left:3px solid transparent;border-radius:0;width:100%;
+    }
+    .subnav button.active{background:var(--accent-soft);border-left-color:var(--accent);color:var(--accent-ink);}
+  }
+
   .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:11px 20px;border-radius:10px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .25s;z-index:2000;max-width:90vw;text-align:center;}
   .toast.show{opacity:1;}
 
@@ -164,6 +195,12 @@
   .chart-grid{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);gap:14px;margin-top:16px;}
   .chart-grid.full{grid-template-columns:1fr;}
   @media (max-width:760px){ .chart-grid{grid-template-columns:1fr;} #appRoot{margin:0;border-radius:0;} }
+  /* ---- Pembungkus canvas Chart.js: tinggi tetap, chart bar bisa digeser
+     horizontal kalau kategorinya (line) banyak & layar sempit ---- */
+  .chart-canvas-inner{position:relative;height:220px;}
+  .chart-scroll-x{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+  .chart-scroll-x .chart-canvas-inner{height:220px;}
+  @media (max-width:520px){ .chart-canvas-inner{height:200px;} }
   .donut-wrap{display:flex;flex-direction:column;align-items:center;}
   .donut-center{font-family:var(--disp);font-weight:800;font-size:20px;color:var(--ink);}
 
