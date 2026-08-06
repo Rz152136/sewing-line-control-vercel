@@ -203,10 +203,12 @@
   .login-kpi-lbl{font-size:10.5px;font-weight:600;opacity:.8;margin-bottom:3px;}
   .login-kpi-val{font-family:var(--disp);font-weight:800;font-size:19px;font-variant-numeric:tabular-nums;transition:opacity .1s ease;}
 
-  /* ---- Dekorasi + brand header versi MOBILE (di dalam kartu, warna hijau di atas background terang) ---- */
-  .login-mobile-decor{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:0;}
-  .login-mobile-decor .login-blob{background:var(--accent);opacity:.07;}
-  .login-mobile-decor .login-vec{color:var(--accent);opacity:.16;}
+  /* ---- Background hijau + dekorasi bergerak layar penuh (mobile) ---- */
+  .login-mobile-bg-decor{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:0;}
+  .login-mobile-bg-decor .login-blob{background:#fff;opacity:.14;}
+  .login-mobile-bg-decor .login-vec{color:#fff;opacity:.20;}
+
+  /* ---- Brand header versi MOBILE (di dalam kartu putih) ---- */
   .login-mobile-brand{position:relative;z-index:1;text-align:center;margin-bottom:20px;animation:loginFadeUp .5s ease both;}
   .login-mobile-brand .mark{width:96px;height:96px;border-radius:20px;background:var(--accent-soft);padding:12px;object-fit:contain;display:block;margin:0 auto 14px;animation:loginPulseRingSoft 3s ease-in-out infinite;}
   @keyframes loginPulseRingSoft{
@@ -228,7 +230,7 @@
 
   /* ---- Layout desktop (split-screen dgn panel branding) ---- */
   @media (min-width:861px){
-    .login-mobile-decor, .login-mobile-brand{display:none;}
+    .login-mobile-bg-decor, .login-mobile-brand{display:none;}
     .login-mobile-brand + h2{display:block;}
     .login-brand-panel{
       display:flex;flex-direction:column;justify-content:center;flex:1;max-width:480px;
@@ -264,9 +266,10 @@
     .login-form-panel{flex:1;max-width:640px;}
   }
 
-  /* ---- Layout mobile (kartu dgn brand header ringkas + dekorasi) ---- */
+  /* ---- Layout mobile (background hijau bergerak + kartu putih) ---- */
   @media (max-width:860px){
-    .login-form-panel{padding:16px;}
+    #loginScreen{background:linear-gradient(160deg,var(--accent),var(--accent-ink));position:fixed;overflow:hidden;}
+    .login-form-panel{padding:16px;position:relative;z-index:1;}
     #loginScreen .box{padding:28px 22px;}
   }
   #loginError{color:var(--red);font-size:12.5px;margin:-6px 0 12px;min-height:1em;}
