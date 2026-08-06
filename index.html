@@ -600,7 +600,7 @@ function renderLineDetailPage(r){
     <div class="panel" style="padding:16px 18px;margin-bottom:0;margin-top:14px;" id="ldProcessPanel">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;">
         <h3 style="margin-bottom:6px;">Detail Proses</h3>
-        <button type="button" class="btn green sm" onclick="openLineSkillMatrix('${r.line}')">Lihat Skill Matrix Line →</button>
+        <button type="button" class="btn green sm" onclick="openLineSkillMatrix('${r.line}', '${escapeHtml(r.style||'')}')">Lihat Skill Matrix Line →</button>
       </div>
       <div class="tbl-wrap">
         <table>
@@ -701,11 +701,11 @@ function closeLineSkillMatrix(){
   window.scrollTo({top:0, behavior:'smooth'});
 }
 
-async function openLineSkillMatrix(line){
+async function openLineSkillMatrix(line, style){
   document.getElementById('view-linedetail').classList.add('hidden');
   document.getElementById('view-lineskillmatrix').classList.remove('hidden');
   window.scrollTo({top:0, behavior:'smooth'});
-  await renderLineSkillMatrix(line);
+  await renderLineSkillMatrix(line, style);
 }
 
 function smxGradeOf(total){
@@ -714,14 +714,14 @@ function smxGradeOf(total){
   return 'c';
 }
 
-async function renderLineSkillMatrix(line){
+async function renderLineSkillMatrix(line, style){
   const root = document.getElementById('lineSkillMatrixContent');
   root.innerHTML = `
     <div class="panel">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;">
         <div>
-          <h2 style="margin-bottom:2px;">Skill Matrix — Line ${escapeHtml(line)}</h2>
-          <p class="sub" style="margin-bottom:0;">Kolom = proses/skill yang pernah tercatat di line ini (semua style), baris = operator. Warna sel menandakan grade operator pada proses tersebut berdasarkan SMV.</p>
+          <h2 style="margin-bottom:2px;">Skill Matrix — Line ${escapeHtml(line)}${style ? ' · '+escapeHtml(style) : ''}</h2>
+          <p class="sub" style="margin-bottom:0;">Kolom = proses/skill di style yang sedang berjalan ini saja, baris = operator. Warna sel menandakan grade operator pada proses tersebut berdasarkan SMV.</p>
         </div>
         <button type="button" class="btn green sm" id="smxExportBtn">Export sebagai Gambar</button>
       </div>
@@ -736,16 +736,22 @@ async function renderLineSkillMatrix(line){
   `;
 
   document.getElementById('smxExportBtn').addEventListener('click', ()=>{
-    exportElementAsImage('smxWrap', 'skill-matrix-line-'+line+'.png');
+    exportElementAsImage('smxWrap', 'skill-matrix-line-'+line+(style?'-'+style:'')+'.png');
   });
 
-  try{
-    const rows = await apiGet('/line-processes?line='+encodeURIComponent(line));
-    const wrap = document.getElementById('smxWrap');
-    if(!rows.length){ wrap.innerHTML = '<div class="sm-empty">Belum ada breakdown proses tersimpan untuk line ini.</div>'; return; }
+  if(!style){
+    document.getElementById('smxWrap').innerHTML = '<div class="sm-empty">Line ini belum ada Style yang berjalan.</div>';
+    return;
+  }
 
-    // Kumpulkan proses unik (kolom) & operator unik (baris), lalu rata-ratakan
-    // SMV kalau satu operator+proses muncul lebih dari sekali (beda style).
+  try{
+    const rows = await apiGet('/line-processes?line='+encodeURIComponent(line)+'&style='+encodeURIComponent(style));
+    const wrap = document.getElementById('smxWrap');
+    if(!rows.length){ wrap.innerHTML = '<div class="sm-empty">Belum ada breakdown proses tersimpan untuk style ini.</div>'; return; }
+
+    // Kumpulkan proses unik (kolom) & operator unik (baris). cellMap dipakai
+    // buat jaga-jaga kalau ada nama proses yang kebetulan dobel di breakdown
+    // yang sama (harusnya tidak terjadi, tapi dirata-rata biar aman).
     const processNames = [];
     const processSeen = new Set();
     const operatorNames = [];
