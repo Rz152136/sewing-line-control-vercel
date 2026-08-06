@@ -197,6 +197,12 @@
   .login-brand-expand{margin:0 0 4px;font-weight:600;letter-spacing:.02em;}
   .login-brand-tagline{margin:0 0 4px;}
 
+  /* ---- 4 kartu KPI berjalan (dekoratif, dipakai desktop & mobile) ---- */
+  .login-kpi-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:22px;position:relative;z-index:1;}
+  .login-kpi{border-radius:12px;padding:11px 13px;animation:loginFadeUp .6s ease both;}
+  .login-kpi-lbl{font-size:10.5px;font-weight:600;opacity:.8;margin-bottom:3px;}
+  .login-kpi-val{font-family:var(--disp);font-weight:800;font-size:19px;font-variant-numeric:tabular-nums;transition:opacity .1s ease;}
+
   /* ---- Dekorasi + brand header versi MOBILE (di dalam kartu, warna hijau di atas background terang) ---- */
   .login-mobile-decor{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:0;}
   .login-mobile-decor .login-blob{background:var(--accent);opacity:.07;}
@@ -210,6 +216,13 @@
   .login-mobile-brand h1{font-family:var(--disp);font-size:25px;margin:0 0 5px;font-weight:800;color:var(--ink);letter-spacing:-.01em;}
   .login-mobile-brand .login-brand-expand{font-size:11.5px;color:var(--accent-ink);}
   .login-mobile-brand .login-brand-tagline{font-size:11px;color:var(--muted);}
+  .login-kpi-grid-mobile .login-kpi{background:var(--panel2);border:1px solid var(--line);}
+  .login-kpi-grid-mobile .login-kpi-lbl{color:var(--muted);}
+  .login-kpi-grid-mobile .login-kpi-val{color:var(--accent-ink);font-size:16px;}
+  .login-kpi-grid-mobile .login-kpi:nth-child(1){animation-delay:.05s;}
+  .login-kpi-grid-mobile .login-kpi:nth-child(2){animation-delay:.1s;}
+  .login-kpi-grid-mobile .login-kpi:nth-child(3){animation-delay:.15s;}
+  .login-kpi-grid-mobile .login-kpi:nth-child(4){animation-delay:.2s;}
   #loginScreen .box > h2, #loginScreen .box > p.sub{position:relative;z-index:1;}
   .login-mobile-brand + h2{display:none;} /* h2 "RISE" polos disembunyikan di mobile, sudah diwakili login-mobile-brand */
 
@@ -241,6 +254,13 @@
     .login-brand-points li:nth-child(2){animation-delay:.2s;}
     .login-brand-points li:nth-child(3){animation-delay:.3s;}
     .login-brand-points li::before{content:'\2713';flex-shrink:0;width:20px;height:20px;border-radius:50%;background:rgba(255,255,255,.18);display:flex;align-items:center;justify-content:center;font-size:11px;margin-top:1px;}
+    .login-brand-panel .login-kpi{background:rgba(255,255,255,.1);}
+    .login-brand-panel .login-kpi-lbl{color:rgba(255,255,255,.75);}
+    .login-brand-panel .login-kpi-val{color:#fff;}
+    .login-brand-panel .login-kpi:nth-child(1){animation-delay:.35s;}
+    .login-brand-panel .login-kpi:nth-child(2){animation-delay:.4s;}
+    .login-brand-panel .login-kpi:nth-child(3){animation-delay:.45s;}
+    .login-brand-panel .login-kpi:nth-child(4){animation-delay:.5s;}
     .login-form-panel{flex:1;max-width:640px;}
   }
 
