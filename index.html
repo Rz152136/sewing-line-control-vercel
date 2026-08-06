@@ -62,7 +62,7 @@
       <p class="login-brand-tagline">Production Monitoring System for Garment Manufacturing</p>
       <ul class="login-brand-points">
         <li>Pantau efisiensi &amp; output tiap line secara real-time</li>
-        <li>Skill Matrix dan Balance Qty (BLC) dihitung otomatis</li>
+        <li>Skill Matrix dan Forecast Target dihitung otomatis</li>
         <li>Telusuri dashboard di tanggal-tanggal sebelumnya kapan saja</li>
       </ul>
       <div class="login-kpi-grid">
@@ -221,7 +221,7 @@ const API_BASE = '/api';
 // periode: harian / mingguan / bulanan-- navigasi tanggal dashboard
 // Tanggal laporan untuk shift...      -- shift yang menyeberang tengah malam
 // Halaman detail line                 -- halaman & hero saat klik 1 line
-// Balance Qty (BLC) & Forecast Target -- panel BLC di Detail Line
+// Forecast Target -- panel target harian/mingguan/bulanan di Detail Line
 // Skill Matrix per Line               -- grid kompetensi 1 line (bisa export gambar)
 // Kartu KPI                           -- komponen kartu KPI dashboard
 // Auth & koneksi Supabase             -- login, session, role
@@ -589,8 +589,8 @@ function renderLineDetailPage(r){
     </div>
 
     <div class="panel" style="padding:16px 18px;margin-bottom:0;margin-top:14px;" id="ldForecastPanel">
-      <h3 style="margin-bottom:2px;">Balance Qty (BLC) &amp; Forecast Target</h3>
-      <p class="sub" style="margin:0 0 12px;">BLC = akumulasi sisa qty dari SEMUA order/style yang pernah tercatat jalan di line ini. Target harian/mingguan/bulanan dari kapasitas line saat ini — tidak terikat Plan Finish.</p>
+      <h3 style="margin-bottom:2px;">Forecast Target</h3>
+      <p class="sub" style="margin:0 0 12px;">Target harian/mingguan/bulanan dari kapasitas line saat ini (SMV/MP/Jam Kerja style yang aktif) — tidak terikat Plan Finish.</p>
       <div class="ld-grid" id="ldForecastGrid">
         <div class="ld-stat"><div class="lbl">Memuat...</div><div class="val">-</div></div>
       </div>
@@ -622,21 +622,13 @@ function renderLineDetailPage(r){
   loadLineForecast(r.line, r.targetFull);
 }
 
-// ---------- Balance Qty (BLC) & Forecast Target Harian/Mingguan/Bulanan ----------
-// Catatan penting: Target Harian/Mingguan/Bulanan dihitung dari KAPASITAS
-// harian line saat ini (Target Harian Penuh, dari SMV/MP/Jam Kerja style yang
-// aktif sekarang) -- sengaja TIDAK dikaitkan ke Plan Finish, karena Plan
-// Finish melekat ke style yang berjalan dan bisa berganti beberapa kali
-// sebulan. Asumsi hari kerja: Senin-Sabtu (Minggu libur), 6 hari kerja/minggu,
-// ~26 hari kerja/bulan.
-//
-// BLC (Balance Qty) DIAKUMULASI dari SEMUA order/style yang pernah tercatat
-// jalan di line ini (tabel line_orders), bukan cuma style yang aktif
-// sekarang -- setiap order dihitung sisanya sendiri (qty_order dikurangi
-// output riil selama rentang tanggal order itu berjalan), lalu dijumlah semua.
-// Riwayat order baru mulai tercatat sejak fitur ini dipasang; order yang
-// sudah lewat sebelum itu tidak ikut terhitung (datanya sudah tidak ada lagi).
-async function loadLineForecast(line, targetFull){
+// ---------- Forecast Target Harian/Mingguan/Bulanan ----------
+// Dihitung murni dari KAPASITAS harian line saat ini (Target Harian Penuh,
+// dari SMV/MP/Jam Kerja style yang aktif sekarang) -- sengaja TIDAK
+// dikaitkan ke Plan Finish, karena Plan Finish melekat ke style yang berjalan
+// dan bisa berganti beberapa kali sebulan. Asumsi hari kerja: Senin-Sabtu
+// (Minggu libur), 6 hari kerja/minggu, ~26 hari kerja/bulan.
+function loadLineForecast(line, targetFull){
   const grid = document.getElementById('ldForecastGrid');
   const noteEl = document.getElementById('ldForecastNote');
   if(!grid) return;
@@ -645,82 +637,15 @@ async function loadLineForecast(line, targetFull){
   const targetMingguan = targetHarian!==null ? targetHarian * 6 : null;
   const targetBulanan = targetHarian!==null ? targetHarian * 26 : null;
 
-  try{
-    const orders = (await apiGet('/line-orders?line='+encodeURIComponent(line)))
-      .filter(o=>o.plan_start)
-      .sort((a,b)=> a.plan_start < b.plan_start ? -1 : a.plan_start > b.plan_start ? 1 : 0);
-
-    const today = new Date(); today.setHours(0,0,0,0);
-    const todayStr2 = toDateStr(today);
-    const startedOrders = orders.filter(o=>o.plan_start <= todayStr2);
-
-    if(!startedOrders.length){
-      grid.innerHTML = `
-        <div class="ld-stat"><div class="lbl">Balance Qty (BLC)</div><div class="val">-</div></div>
-        <div class="ld-stat"><div class="lbl">Target Harian</div><div class="val">${targetHarian===null?'-':fmtNum(targetHarian)}</div></div>
-        <div class="ld-stat"><div class="lbl">Target Mingguan</div><div class="val">${targetMingguan===null?'-':fmtNum(targetMingguan)}</div></div>
-        <div class="ld-stat"><div class="lbl">Target Bulanan</div><div class="val">${targetBulanan===null?'-':fmtNum(targetBulanan)}</div></div>
-      `;
-      if(noteEl) noteEl.textContent = 'Belum ada riwayat order tercatat untuk line ini (riwayat mulai terisi otomatis begitu Style & Plan Start disimpan di Variabel per Line).';
-      return;
-    }
-
-    // Rentang tanggal tiap order: dari plan_start-nya sampai sehari sebelum
-    // plan_start order berikutnya (atau sampai hari ini kalau dia order
-    // terakhir/masih berjalan).
-    const ranges = startedOrders.map((o,i)=>{
-      const next = startedOrders[i+1];
-      let end;
-      if(next){
-        const d = new Date(next.plan_start+'T00:00:00');
-        d.setDate(d.getDate()-1);
-        end = d < today ? d : today;
-      } else {
-        end = today;
-      }
-      return { order:o, start: new Date(o.plan_start+'T00:00:00'), end };
-    });
-
-    // Kumpulkan semua tanggal unik yang perlu di-fetch (rentang antar order
-    // selalu berurutan tanpa tumpang tindih, jadi totalnya cuma sepanjang
-    // hari sejak order tercatat pertama sampai hari ini).
-    const allDatesSet = new Set();
-    ranges.forEach(rg=>{ datesBetween(rg.start, rg.end).forEach(d=>allDatesSet.add(d)); });
-    const allDates = Array.from(allDatesSet);
-
-    const perDayResults = await Promise.all(allDates.map(async d=>{
-      const logs = await apiGet('/qty-logs?line='+encodeURIComponent(line)+'&date='+d);
-      let dayMax = 0;
-      (logs||[]).forEach(q=>{ const cum = Number(q.qty)||0; if(cum > dayMax) dayMax = cum; });
-      return { date: d, value: dayMax };
-    }));
-    const outputByDate = {};
-    perDayResults.forEach(({date,value})=>{ outputByDate[date] = value; });
-
-    let totalBlc = 0;
-    let totalProduced = 0;
-    ranges.forEach(rg=>{
-      const datesInRange = datesBetween(rg.start, rg.end);
-      const producedInRange = datesInRange.reduce((s,d)=>s+(outputByDate[d]||0), 0);
-      const qtyOrder = Number(rg.order.qty_order) || 0;
-      const balance = Math.max(0, qtyOrder - producedInRange);
-      totalBlc += balance;
-      totalProduced += producedInRange;
-    });
-
-    grid.innerHTML = `
-      <div class="ld-stat"><div class="lbl">Balance Qty (BLC)</div><div class="val">${fmtNum(totalBlc)}</div></div>
-      <div class="ld-stat"><div class="lbl">Sudah Diproduksi</div><div class="val">${fmtNum(totalProduced)}</div></div>
-      <div class="ld-stat"><div class="lbl">Target Harian</div><div class="val">${targetHarian===null?'-':fmtNum(targetHarian)}</div></div>
-      <div class="ld-stat"><div class="lbl">Target Mingguan</div><div class="val">${targetMingguan===null?'-':fmtNum(targetMingguan)}</div></div>
-      <div class="ld-stat"><div class="lbl">Target Bulanan</div><div class="val">${targetBulanan===null?'-':fmtNum(targetBulanan)}</div></div>
-    `;
-    if(noteEl){
-      noteEl.textContent = 'BLC diakumulasi dari '+startedOrders.length+' order tercatat sejak '+fmtDate(startedOrders[0].plan_start)+'. Target harian/mingguan/bulanan dari kapasitas line saat ini, asumsi 6 hari kerja/minggu (Minggu libur) — tidak terikat Plan Finish.';
-    }
-  }catch(err){
-    grid.innerHTML = '<div class="ld-stat"><div class="lbl">Balance Qty (BLC)</div><div class="val" style="color:var(--red);">Error</div></div>';
-    if(noteEl) noteEl.textContent = 'Gagal memuat forecast: '+err.message;
+  grid.innerHTML = `
+    <div class="ld-stat"><div class="lbl">Target Harian</div><div class="val">${targetHarian===null?'-':fmtNum(targetHarian)}</div></div>
+    <div class="ld-stat"><div class="lbl">Target Mingguan</div><div class="val">${targetMingguan===null?'-':fmtNum(targetMingguan)}</div></div>
+    <div class="ld-stat"><div class="lbl">Target Bulanan</div><div class="val">${targetBulanan===null?'-':fmtNum(targetBulanan)}</div></div>
+  `;
+  if(noteEl){
+    noteEl.textContent = targetHarian===null
+      ? 'Target belum bisa dihitung karena Target Harian Penuh/SMV belum diisi untuk style yang aktif.'
+      : 'Asumsi 6 hari kerja/minggu (Minggu libur) — tidak terikat Plan Finish.';
   }
 }
 
@@ -1855,7 +1780,7 @@ async function renderIeLineConfig(){
 
     <div class="panel">
       <h2>Order / Style</h2>
-      <p class="sub">Style, SMV, Qty Order, rencana &amp; tanggal delivery — <b>punya riwayat</b>. Tiap kali Style/Plan Start baru disimpan, otomatis jadi baris riwayat baru (bukan menimpa order sebelumnya), sehingga Balance Qty (BLC) di halaman Detail Line bisa diakumulasi dari semua order yang pernah jalan. Simpan ulang dengan Style+Plan Start yang SAMA akan meng-update baris riwayat itu (bukan duplikat).</p>
+      <p class="sub">Style, SMV, Qty Order, rencana &amp; tanggal delivery — <b>punya riwayat</b>. Tiap kali Style/Plan Start baru disimpan, otomatis jadi baris riwayat baru (bukan menimpa order sebelumnya). Simpan ulang dengan Style+Plan Start yang SAMA akan meng-update baris riwayat itu (bukan duplikat).</p>
       <form id="loForm">
         <div class="field-row">
           <div class="field"><label>Line</label>
