@@ -118,33 +118,41 @@
 
 <script>
 // Angka KPI dekoratif di halaman login (belum ada sesi login jadi bukan data
-// asli) -- tiap elemen jalan sendiri-sendiri (random walk pelan) tiap 1 detik,
-// dibatasi di sekitar data-base +/- data-range biar kelihatan wajar, bukan
-// lompat acak kasar. Kartunya juga "berdenyut" (pulse) tiap kali angkanya
-// ganti, biar kelihatan hidup.
+// asli) -- tiap kartu jalan SENDIRI-SENDIRI (bukan serentak): tiap elemen
+// punya jadwal update sendiri, rata-rata tiap 2 detik tapi acak +/-0.6 detik,
+// jadi kelihatan hidup & tidak berdenyut bareng semua kartu. Nilainya random
+// walk pelan (dibatasi di sekitar data-base +/- data-range).
 (function(){
   function initLoginKpiTicker(){
     const els = document.querySelectorAll('.login-kpi-val');
     if(!els.length) return;
-    const state = Array.from(els).map(el=>{
+    els.forEach(el=>{
       const base = parseFloat(el.dataset.base)||0;
-      return { el, card: el.closest('.login-kpi'), base, range: parseFloat(el.dataset.range)||0, suffix: el.dataset.suffix||'', decimals: parseInt(el.dataset.decimals||'0',10), cur: base };
-    });
-    function tick(){
-      state.forEach(s=>{
-        const min = s.base - s.range, max = s.base + s.range;
-        const step = s.range * 0.35 * (Math.random()*2 - 1);
-        s.cur = Math.min(max, Math.max(min, s.cur + step));
-        s.el.textContent = s.cur.toLocaleString('id-ID',{minimumFractionDigits:s.decimals,maximumFractionDigits:s.decimals}) + s.suffix;
-        if(s.card){
-          s.card.classList.remove('login-kpi-pulse');
-          void s.card.offsetWidth; // paksa reflow biar animasi bisa diulang dari awal
-          s.card.classList.add('login-kpi-pulse');
+      const range = parseFloat(el.dataset.range)||0;
+      const suffix = el.dataset.suffix||'';
+      const decimals = parseInt(el.dataset.decimals||'0',10);
+      const card = el.closest('.login-kpi');
+      let cur = base;
+
+      function scheduleNext(){
+        const jitter = (Math.random()*1200) - 600; // +/-600ms di sekitar 2 detik
+        setTimeout(update, 2000 + jitter);
+      }
+      function update(){
+        const min = base - range, max = base + range;
+        const step = range * 0.35 * (Math.random()*2 - 1);
+        cur = Math.min(max, Math.max(min, cur + step));
+        el.textContent = cur.toLocaleString('id-ID',{minimumFractionDigits:decimals,maximumFractionDigits:decimals}) + suffix;
+        if(card){
+          card.classList.remove('login-kpi-pulse');
+          void card.offsetWidth; // paksa reflow biar animasi bisa diulang dari awal
+          card.classList.add('login-kpi-pulse');
         }
-      });
-    }
-    tick();
-    setInterval(tick, 1000);
+        scheduleNext();
+      }
+      // mulai dengan delay acak juga, biar dari awal langsung tidak sinkron
+      setTimeout(update, Math.random()*2000);
+    });
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', initLoginKpiTicker);
   else initLoginKpiTicker();
