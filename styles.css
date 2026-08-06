@@ -202,6 +202,12 @@
   .login-kpi{border-radius:12px;padding:11px 13px;animation:loginFadeUp .6s ease both;}
   .login-kpi-lbl{font-size:10.5px;font-weight:600;opacity:.8;margin-bottom:3px;}
   .login-kpi-val{font-family:var(--disp);font-weight:800;font-size:19px;font-variant-numeric:tabular-nums;transition:opacity .1s ease;}
+  .login-kpi-pulse{animation:loginKpiPulse .5s ease;}
+  @keyframes loginKpiPulse{
+    0%{ transform:scale(1); }
+    30%{ transform:scale(1.06); }
+    100%{ transform:scale(1); }
+  }
 
   /* ---- Background hijau + dekorasi bergerak layar penuh (mobile) ---- */
   .login-mobile-bg-decor{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:0;}
@@ -266,11 +272,19 @@
     .login-form-panel{flex:1;max-width:640px;}
   }
 
-  /* ---- Layout mobile (background hijau bergerak + kartu putih) ---- */
+  /* ---- Layout mobile (background hijau bergerak + kartu glassmorphism) ---- */
   @media (max-width:860px){
     #loginScreen{background:linear-gradient(160deg,var(--accent),var(--accent-ink));position:fixed;overflow:hidden;}
     .login-form-panel{padding:16px;position:relative;z-index:1;}
-    #loginScreen .box{padding:28px 22px;}
+    #loginScreen .box{
+      padding:28px 22px;
+      background:rgba(255,255,255,.62);
+      backdrop-filter:blur(18px) saturate(140%);
+      -webkit-backdrop-filter:blur(18px) saturate(140%);
+      border:1px solid rgba(255,255,255,.45);
+      box-shadow:0 8px 32px rgba(8,28,19,.28);
+    }
+    #loginScreen .field input{background:rgba(255,255,255,.7);border-color:rgba(255,255,255,.5);}
   }
   #loginError{color:var(--red);font-size:12.5px;margin:-6px 0 12px;min-height:1em;}
   #fatalError{display:none;background:var(--red-bg);color:var(--red);font-size:12px;padding:10px 12px;border-radius:10px;margin-bottom:14px;word-break:break-word;}
