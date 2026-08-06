@@ -118,27 +118,33 @@
 
 <script>
 // Angka KPI dekoratif di halaman login (belum ada sesi login jadi bukan data
-// asli) -- tiap elemen jalan sendiri-sendiri (random walk pelan) tiap 200ms,
+// asli) -- tiap elemen jalan sendiri-sendiri (random walk pelan) tiap 1 detik,
 // dibatasi di sekitar data-base +/- data-range biar kelihatan wajar, bukan
-// lompat acak kasar.
+// lompat acak kasar. Kartunya juga "berdenyut" (pulse) tiap kali angkanya
+// ganti, biar kelihatan hidup.
 (function(){
   function initLoginKpiTicker(){
     const els = document.querySelectorAll('.login-kpi-val');
     if(!els.length) return;
     const state = Array.from(els).map(el=>{
       const base = parseFloat(el.dataset.base)||0;
-      return { el, base, range: parseFloat(el.dataset.range)||0, suffix: el.dataset.suffix||'', decimals: parseInt(el.dataset.decimals||'0',10), cur: base };
+      return { el, card: el.closest('.login-kpi'), base, range: parseFloat(el.dataset.range)||0, suffix: el.dataset.suffix||'', decimals: parseInt(el.dataset.decimals||'0',10), cur: base };
     });
     function tick(){
       state.forEach(s=>{
         const min = s.base - s.range, max = s.base + s.range;
-        const step = s.range * 0.12 * (Math.random()*2 - 1);
+        const step = s.range * 0.35 * (Math.random()*2 - 1);
         s.cur = Math.min(max, Math.max(min, s.cur + step));
         s.el.textContent = s.cur.toLocaleString('id-ID',{minimumFractionDigits:s.decimals,maximumFractionDigits:s.decimals}) + s.suffix;
+        if(s.card){
+          s.card.classList.remove('login-kpi-pulse');
+          void s.card.offsetWidth; // paksa reflow biar animasi bisa diulang dari awal
+          s.card.classList.add('login-kpi-pulse');
+        }
       });
     }
     tick();
-    setInterval(tick, 200);
+    setInterval(tick, 1000);
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', initLoginKpiTicker);
   else initLoginKpiTicker();
