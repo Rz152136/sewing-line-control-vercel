@@ -1,4 +1,4 @@
-:root{
+  :root{
     --page-bg:#f4f5f4; --bg:#fafafa; --panel:#ffffff; --panel2:#f6f7f6; --panel3:#eef0ee;
     --ink:#1a1f1c; --line:#e8e9e7; --muted:#82887f; --faint:#b3b7ae;
     --accent:#1f6d4c; --accent-soft:#e3f0e8; --accent-ink:#164f38;
@@ -189,16 +189,17 @@
   .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:11px 20px;border-radius:10px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .25s;z-index:2000;max-width:90vw;text-align:center;}
   .toast.show{opacity:1;}
 
-  .chart-box{border:1px solid var(--line);border-radius:14px;padding:16px;margin-top:16px;background:var(--panel);}
+  .chart-box{border:1px solid var(--line);border-radius:14px;padding:16px;margin-top:16px;background:var(--panel);min-width:0;}
   .chart-box .chart-title{font-family:var(--disp);font-size:13.5px;font-weight:700;color:var(--ink);margin:0 0 2px;}
   .chart-box .chart-sub{font-size:11px;color:var(--muted);margin:0 0 12px;}
-  .chart-grid{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);gap:14px;margin-top:16px;}
+  .chart-grid{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);gap:14px;margin-top:16px;min-width:0;}
   .chart-grid.full{grid-template-columns:1fr;}
   @media (max-width:760px){ .chart-grid{grid-template-columns:1fr;} #appRoot{margin:0;border-radius:0;} }
   /* ---- Pembungkus canvas Chart.js: tinggi tetap, chart bar bisa digeser
      horizontal kalau kategorinya (line) banyak & layar sempit ---- */
-  .chart-canvas-inner{position:relative;height:220px;}
-  .chart-scroll-x{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+  .chart-canvas-inner{position:relative;height:220px;width:100%;min-width:0;}
+  .chart-canvas-inner canvas{width:100% !important;height:100% !important;display:block;}
+  .chart-scroll-x{overflow-x:auto;-webkit-overflow-scrolling:touch;width:100%;}
   .chart-scroll-x .chart-canvas-inner{height:220px;}
   @media (max-width:520px){ .chart-canvas-inner{height:200px;} }
   .donut-wrap{display:flex;flex-direction:column;align-items:center;}
