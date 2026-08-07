@@ -13,24 +13,13 @@ module.exports = async (req, res) => {
     return res.status(err.status || 401).json({ error: err.message });
   }
 
-  const table = req.query.table || "line_processes";
   const supabase = getServiceClient();
 
-  if (table === "manpower" && req.method === "GET") {
+  if (req.query.resource === 'manpower') {
+    return handleManpower(req, res, supabase, user);
+  }
 
-  const { data, error } = await supabase
-    .from("manpower")
-    .select("*")
-    .order("nama", { ascending: true });
-
-  if (error)
-    return res.status(500).json({ error: error.message });
-
-  return res.status(200).json(data);
-
-}
-
-if (req.method === 'GET') {
+  if (req.method === 'GET') {
     // Semua role boleh baca (dipakai untuk tampilan Detail Line & Skill Matrix).
     let query = supabase
       .from('line_processes')
@@ -43,54 +32,7 @@ if (req.method === 'GET') {
     return res.status(200).json(data);
   }
 
- if (table === "manpower" && req.method === "POST") {
-
-  try {
-    requireRole(user, ["ie"]);
-  } catch (err) {
-    return res.status(err.status).json({ error: err.message });
-  }
-
-  const b = req.body || {};
-  const rows = Array.isArray(b.rows) ? b.rows : [];
-
-  if (!rows.length) {
-    return res.status(400).json({
-      error: "Tidak ada baris manpower untuk disimpan."
-    });
-  }
-
-  const now = new Date().toISOString();
-
-  const toUpsert = rows
-    .map((r) => ({
-      nik: String(r.nik || "").trim(),
-      nama: String(r.nama || "").trim(),
-      updated_by: user.id,
-      updated_at: now,
-    }))
-    .filter((r) => r.nik && r.nama);
-
-  if (!toUpsert.length) {
-    return res.status(400).json({
-      error: "Baris yang dikirim tidak punya NIK/Nama yang valid."
-    });
-  }
-
-  const { data, error } = await supabase
-    .from("manpower")
-    .upsert(toUpsert, {
-      onConflict: "nik"
-    })
-    .select();
-
-  if (error)
-    return res.status(500).json({ error: error.message });
-
-  return res.status(200).json(data);
-}
-
-if (req.method === 'POST') {
+  if (req.method === 'POST') {
     // Hanya IE yang boleh mengisi breakdown proses.
     try {
       requireRole(user, ['ie']);
@@ -208,34 +150,7 @@ if (req.method === 'POST') {
     return res.status(200).json(data);
   }
 
-  if (table === "manpower" && req.method === "DELETE") {
-
-  try {
-    requireRole(user, ["ie"]);
-  } catch (err) {
-    return res.status(err.status).json({ error: err.message });
-  }
-
-  const nik = String(req.query.nik || "").trim();
-
-  if (!nik) {
-    return res.status(400).json({
-      error: "NIK wajib diisi."
-    });
-  }
-
-  const { error } = await supabase
-    .from("manpower")
-    .delete()
-    .eq("nik", nik);
-
-  if (error)
-    return res.status(500).json({ error: error.message });
-
-  return res.status(200).json({ ok: true });
-}
-
-if (req.method === 'DELETE') {
+  if (req.method === 'DELETE') {
     // Hanya IE. Hapus seluruh breakdown untuk 1 line+style sekaligus
     // (dipakai tombol "Hapus Semua" sebelum paste ulang, kalau perlu).
     try {
@@ -263,3 +178,65 @@ if (req.method === 'DELETE') {
   res.setHeader('Allow', ['GET', 'POST', 'PATCH', 'DELETE']);
   return res.status(405).json({ error: 'Method not allowed' });
 };
+
+async function handleManpower(req, res, supabase, user) {
+  if (req.method === 'GET') {
+    const { data, error } = await supabase.from('manpower').select('*').order('nama', { ascending: true });
+    if (error) return res.status(500).json({ error: error.message });
+    return res.status(200).json(data);
+  }
+
+  if (req.method === 'POST') {
+    try {
+      requireRole(user, ['ie']);
+    } catch (err) {
+      return res.status(err.status).json({ error: err.message });
+    }
+
+    const b = req.body || {};
+    const rows = Array.isArray(b.rows) ? b.rows : [];
+    if (!rows.length) {
+      return res.status(400).json({ error: 'Tidak ada baris manpower untuk disimpan.' });
+    }
+
+    const now = new Date().toISOString();
+    const toUpsert = rows
+      .map((r) => ({
+        nik: String(r.nik || '').trim(),
+        nama: String(r.nama || '').trim(),
+        updated_by: user.id,
+        updated_at: now,
+      }))
+      .filter((r) => r.nik && r.nama);
+
+    if (!toUpsert.length) {
+      return res.status(400).json({ error: 'Baris yang dikirim tidak punya NIK/Nama yang valid.' });
+    }
+
+    const { data, error } = await supabase
+      .from('manpower')
+      .upsert(toUpsert, { onConflict: 'nik' })
+      .select();
+
+    if (error) return res.status(500).json({ error: error.message });
+    return res.status(200).json(data);
+  }
+
+  if (req.method === 'DELETE') {
+    try {
+      requireRole(user, ['ie']);
+    } catch (err) {
+      return res.status(err.status).json({ error: err.message });
+    }
+
+    const nik = String(req.query.nik || '').trim();
+    if (!nik) return res.status(400).json({ error: 'NIK wajib diisi.' });
+
+    const { error } = await supabase.from('manpower').delete().eq('nik', nik);
+    if (error) return res.status(500).json({ error: error.message });
+    return res.status(200).json({ ok: true });
+  }
+
+  res.setHeader('Allow', ['GET', 'POST', 'DELETE']);
+  return res.status(405).json({ error: 'Method not allowed' });
+}
