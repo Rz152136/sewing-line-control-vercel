@@ -1258,12 +1258,9 @@ async function buildDashboardHtml(period, refDate){
         return `
         <div class="top3-card rank-${i+1}">
           <div class="top3-medal">${MEDALS[i]}</div>
-          <div class="top3-rank-label">${RANK_LABEL[i]}</div>
           <div class="top3-line">Line ${escapeHtml(r.line)}</div>
-          <div class="top3-style">${escapeHtml(r.style || 'Belum ada style running')}</div>
           <div class="top3-eff">${r.eff}%</div>
-          <div class="top3-eff-label">Efisiensi</div>
-          <div class="top3-output">Output Aktual: <b>${fmtNum(r.outputActual)}</b></div>
+          <div class="top3-output">${escapeHtml(r.style || 'Tanpa style')} · <b>${fmtNum(r.outputActual)}</b> pcs</div>
         </div>`;
       }).join('')}
     </div>`;
