@@ -1157,14 +1157,18 @@ async function buildDashboardHtml(period, refDate){
     
     dailyTrend.push({ date, output: dayOutputSum, target: dayTargetSum });
     let dayPresent = 0, dayAbsent = 0;
-allLines.forEach(l=>{
-  // pola ini mengikuti cara kamu isi perLine[l].present/absent yang sudah ada di loop ini
-  dayPresent += (dayPresentByLine[l] || 0);
-  dayAbsent  += (dayAbsentByLine[l] || 0);
+  allLines.forEach(l=>{
+    dayPresent += (dayPresentByLine[l] || 0);
+    dayAbsent  += (dayAbsentByLine[l] || 0);
+  });
+  if(dayPresent + dayAbsent > 0){
+    dailyAttendancePct.push((dayPresent/(dayPresent+dayAbsent))*100);
+  }
+  if(dayMcShiftSum > 0){
+    dailyContribution.push((dayOutputSum/dayMcShiftSum) * grossMargin);
+  }
+
 });
-if(dayPresent + dayAbsent > 0){
-  dailyAttendancePct.push((dayPresent/(dayPresent+dayAbsent))*100);
-}
 
 // contribution harian: pakai productivity hari itu (dayOutputSum / dayMcShiftSum) × grossMargin
 if(dayTargetSum > 0 || dayOutputSum > 0){
