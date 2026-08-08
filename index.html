@@ -1114,8 +1114,6 @@ async function buildDashboardHtml(period, refDate){
   }
 
   const dailyTrend = []; // [{date, output, target}] -- dipakai chart tren, hanya line Assembly (konsisten dgn KPI)
-  const dailyAttendancePct = []; // persentase kehadiran per hari
-  const dailyContribution = [];  // contribution per hari
   perDateOutputs.forEach(({date, qtyLogs, attendances})=>{
     allLines.forEach(l=>{
       const c = effectiveConfigAsOf(l, date);
@@ -1154,30 +1152,7 @@ async function buildDashboardHtml(period, refDate){
       dayTargetSum += fullTarget;
       dayOutputSum += dayOutput[l] || 0;
     });
-    
     dailyTrend.push({ date, output: dayOutputSum, target: dayTargetSum });
-    let dayPresent = 0, dayAbsent = 0;
-  allLines.forEach(l=>{
-    dayPresent += (dayPresentByLine[l] || 0);
-    dayAbsent  += (dayAbsentByLine[l] || 0);
-  });
-  if(dayPresent + dayAbsent > 0){
-    dailyAttendancePct.push((dayPresent/(dayPresent+dayAbsent))*100);
-  }
-  if(dayMcShiftSum > 0){
-    dailyContribution.push((dayOutputSum/dayMcShiftSum) * grossMargin);
-  }
-
-});
-
-// contribution harian: pakai productivity hari itu (dayOutputSum / dayMcShiftSum) × grossMargin
-if(dayTargetSum > 0 || dayOutputSum > 0){
-  // dayMcShiftSum perlu dihitung dari MC Shift tiap line utk tanggal itu (mirip dayTargetSum),
-  // kalau belum ada, jumlahkan dari c.mesin/8*7 tiap line yg dipakai di loop yg sama
-  if(dayMcShiftSum > 0){
-    dailyContribution.push((dayOutputSum/dayMcShiftSum) * grossMargin);
-  }
-}
     attendances.forEach(a=>{
       if(!perLine[a.line]) { allLines.add(a.line); perLine[a.line] = { line:a.line, target:0, targetFull:0, output:0, present:0, absent:0, mesin:0, hasConfig:false, style:'', lineType:'assembly' }; }
       perLine[a.line].present += Number(a.present_count)||0;
@@ -1228,14 +1203,8 @@ if(dayTargetSum > 0 || dayOutputSum > 0){
   const totalMcShift8h = normalRows.reduce((s,r)=>s+r.mcShift8h,0);
   const avgEff = totalTarget>0 ? Math.round((totalOutputActual/totalTarget)*100) : null;
   const overallProductivity = totalMcShift8h>0 ? (totalOutputActual/totalMcShift8h) : null;
-  const avgContribution = dailyContribution.length
-  ? dailyContribution.reduce((a,b)=>a+b,0) / dailyContribution.length
-  : null;
-  const contributionDisplay = (period==='weekly' || period==='monthly') ? avgContribution : overallContribution;
-  const avgAttendancePct = dailyAttendancePct.length
-  ? dailyAttendancePct.reduce((a,b)=>a+b,0) / dailyAttendancePct.length
-  : null;
-  const attendanceDisplayPct = (period==='weekly' || period==='monthly') ? avgAttendancePct : absenPct===null?null:(100-absenPct);
+  const overallContribution = overallProductivity!==null ? overallProductivity * grossMargin : null;
+  const absenPct = (totalPresent+totalAbsent)>0 ? (totalAbsent/(totalPresent+totalAbsent))*100 : null;
 
   const counts = { ok:0, watch:0, risk:0, empty:0, notarget:0 };
   normalRows.forEach(r=>counts[r.cls]++);
@@ -1328,7 +1297,7 @@ if(dayTargetSum > 0 || dayOutputSum > 0){
       ${kpiCard({icon:'target',tint:'var(--panel3)',color:'var(--accent)',label:'Target Harian Penuh',value:fmtNum(totalTargetFull),unit:'unit',sub:'Target 1 hari penuh · Line Assembly'})}
       ${kpiCard({icon:'trend',tint: blcProduksi>=0?'var(--green-bg)':'var(--red-bg)', color: blcProduksi>=0?'var(--green)':'var(--red)', label:'BLC Produksi', value:(blcProduksi>0?'+':'')+fmtNum(blcProduksi), unit:'unit', sub:'Output − Target · '+pNoun+' · Line Assembly'})}
       ${kpiCard({icon:'shield',tint: avgEff===null? 'var(--panel3)' : avgEff>=75?'var(--green-bg)':avgEff>=55?'var(--watch-bg)':'var(--red-bg)', color: avgEff===null?'var(--muted)':avgEff>=75?'var(--green)':avgEff>=55?'var(--amber-ink)':'var(--red)', label:'Rata-rata Efisiensi', value:avgEff===null?'-':avgEff+'%', sub:'Target ≥ 75% · Line Assembly'})}
-      ${kpiCard({icon:'users',tint: attendanceDisplayPct!==null && attendanceDisplayPct<95 ? 'var(--red-bg)':'var(--green-bg)', color: attendanceDisplayPct!==null && attendanceDisplayPct<95 ? 'var(--red)':'var(--green)', label:'Kehadiran', value: attendanceDisplayPct===null?'-':fmtNum(attendanceDisplayPct,1)+'%', unit:'', sub: attendanceDisplayPct===null?'Belum ada data':((period==='weekly'||period==='monthly')?'Rata-rata harian · Semua Line':'Semua Line')})}
+      ${kpiCard({icon:'users',tint: absenPct!==null && absenPct>5 ? 'var(--red-bg)':'var(--green-bg)', color: absenPct!==null && absenPct>5 ? 'var(--red)':'var(--green)', label:'Hadir / Tidak Hadir', value:fmtNum(totalPresent), unit:'/ '+fmtNum(totalAbsent), sub: absenPct===null?'Belum ada data':'Absensi '+fmtNum(absenPct,1)+'% · Semua Line'})}
       ${confidentialKpis}
       ${kpiCard({icon:'trend',tint:'var(--accent-soft)',color:'var(--accent)',label:'Rata-rata Productivity',value:overallProductivity===null?'-':fmtNum(overallProductivity,2),unit:'pcs/mc-shift',sub:'Line Assembly'})}
       ${kpiCard({icon:'trend',tint:'var(--accent-soft)',color:'var(--accent)',label:'Contribution',value:overallContribution===null?'-':fmtNum(overallContribution,0),unit:'/mc-shift',sub:'Productivity × Gross Margin · Line Assembly'})}
