@@ -1,4 +1,4 @@
-  :root{
+:root{
     --page-bg:#f4f5f4; --bg:#fafafa; --panel:#ffffff; --panel2:#f6f7f6; --panel3:#eef0ee;
     --ink:#1a1f1c; --line:#e8e9e7; --muted:#82887f; --faint:#b3b7ae;
     --accent:#1f6d4c; --accent-soft:#e3f0e8; --accent-ink:#164f38;
@@ -125,6 +125,10 @@
   .field{display:flex;flex-direction:column;gap:5px;margin-bottom:12px;}
   .field label{font-size:11px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.4px;}
   .field input,.field select,.field textarea{padding:9px 11px;border:1px solid var(--line);border-radius:9px;font-size:14px;font-family:var(--body);background:var(--panel2);}
+  .ob-chip-wrap{display:flex;flex-wrap:wrap;gap:5px;}
+  .ob-chip{display:inline-flex;align-items:center;gap:5px;background:var(--accent-soft);color:var(--accent-ink);font-size:11.5px;font-weight:600;padding:4px 6px 4px 10px;border-radius:999px;white-space:nowrap;}
+  .ob-chip-x{border:none;background:rgba(0,0,0,.08);color:var(--accent-ink);width:16px;height:16px;border-radius:50%;font-size:11px;line-height:1;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0;}
+  .ob-chip-x:hover{background:var(--red-bg);color:var(--red);}
   .field-row{display:flex;gap:12px;flex-wrap:wrap;}
   .field-row .field{flex:1;min-width:140px;}
 
@@ -189,17 +193,16 @@
   .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:11px 20px;border-radius:10px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .25s;z-index:2000;max-width:90vw;text-align:center;}
   .toast.show{opacity:1;}
 
-  .chart-box{border:1px solid var(--line);border-radius:14px;padding:16px;margin-top:16px;background:var(--panel);min-width:0;}
+  .chart-box{border:1px solid var(--line);border-radius:14px;padding:16px;margin-top:16px;background:var(--panel);}
   .chart-box .chart-title{font-family:var(--disp);font-size:13.5px;font-weight:700;color:var(--ink);margin:0 0 2px;}
   .chart-box .chart-sub{font-size:11px;color:var(--muted);margin:0 0 12px;}
-  .chart-grid{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);gap:14px;margin-top:16px;min-width:0;}
+  .chart-grid{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);gap:14px;margin-top:16px;}
   .chart-grid.full{grid-template-columns:1fr;}
   @media (max-width:760px){ .chart-grid{grid-template-columns:1fr;} #appRoot{margin:0;border-radius:0;} }
   /* ---- Pembungkus canvas Chart.js: tinggi tetap, chart bar bisa digeser
      horizontal kalau kategorinya (line) banyak & layar sempit ---- */
-  .chart-canvas-inner{position:relative;height:220px;width:100%;min-width:0;}
-  .chart-canvas-inner canvas{width:100% !important;height:100% !important;display:block;}
-  .chart-scroll-x{overflow-x:auto;-webkit-overflow-scrolling:touch;width:100%;}
+  .chart-canvas-inner{position:relative;height:220px;}
+  .chart-scroll-x{overflow-x:auto;-webkit-overflow-scrolling:touch;}
   .chart-scroll-x .chart-canvas-inner{height:220px;}
   @media (max-width:520px){ .chart-canvas-inner{height:200px;} }
   .donut-wrap{display:flex;flex-direction:column;align-items:center;}
@@ -362,20 +365,20 @@
   .sm-empty{text-align:center;color:var(--muted);padding:40px 0;font-size:13px;}
 
   /* ---- Top 3 Line (papan peringkat efisiensi) ---- */
-  .top3-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;align-items:stretch;margin:10px 0 22px;}
-  .top3-card{min-width:0;border-radius:16px;padding:14px 14px;text-align:center;border:1px solid var(--line);background:var(--panel);transition:transform .15s ease;}
-  .top3-card.rank-1{border-color:var(--accent);}
-  .top3-card.rank-2{border-color:var(--green);}
-  .top3-card.rank-3{border-color:var(--amber);}
-  .top3-medal{font-size:22px;line-height:1;margin-bottom:8px;}
-  .top3-rank-label{display:none;}
-  .top3-line{font-family:var(--disp);font-weight:800;font-size:16px;color:var(--ink);margin-bottom:4px;}
-  .top3-style{display:none;}
-  .top3-eff{font-family:var(--disp);font-weight:900;font-size:22px;color:var(--ink);line-height:1;margin-bottom:4px;}
-  .top3-eff-label{display:none;}
-  .top3-output{font-size:12px;color:var(--muted);padding-top:0;margin-top:0;}
+  .top3-row{display:flex;gap:14px;align-items:flex-end;justify-content:center;margin:6px 0 26px;flex-wrap:wrap;}
+  .top3-card{flex:1;min-width:150px;max-width:220px;border-radius:14px;padding:20px 16px 18px;text-align:center;position:relative;border:1px solid var(--line);background:var(--panel);transition:transform .15s ease;}
+  .top3-card.rank-1{background:linear-gradient(160deg,#fff8e4,#ffe7ab);border-color:#eec468;transform:translateY(-10px);z-index:2;}
+  .top3-card.rank-2{background:linear-gradient(160deg,#f5f8f6,#e3ece6);border-color:#c7d3cc;}
+  .top3-card.rank-3{background:linear-gradient(160deg,#fdefe3,#f7dcc4);border-color:#e6b787;}
+  .top3-medal{font-size:32px;line-height:1;margin-bottom:6px;}
+  .top3-rank-label{font-family:var(--disp);font-weight:800;font-size:10.5px;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);margin-bottom:3px;}
+  .top3-line{font-family:var(--disp);font-weight:800;font-size:19px;color:var(--ink);margin-bottom:2px;}
+  .top3-style{font-size:11px;color:var(--muted);margin-bottom:12px;min-height:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .top3-eff{font-family:var(--disp);font-weight:900;font-size:27px;color:var(--ink);line-height:1;}
+  .top3-eff-label{font-size:10px;color:var(--muted);margin:2px 0 10px;text-transform:uppercase;letter-spacing:.4px;}
+  .top3-output{font-size:11.5px;color:var(--muted);border-top:1px dashed var(--line);padding-top:8px;margin-top:2px;}
   .top3-output b{color:var(--ink);font-family:var(--mono);}
-  @media (max-width:640px){ .top3-card{padding:12px 12px;} }
+  @media (max-width:640px){ .top3-card.rank-1{transform:none;} }
 
   /* ---- Line Skill Matrix (grid ala matrix kompetensi) ---- */
   .smx-toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px;}
