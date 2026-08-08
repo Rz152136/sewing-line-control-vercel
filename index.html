@@ -423,11 +423,15 @@ function periodRangeText(dates, period){
 function escapeHtml(s){
   return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
-function summarizeByOperator(list){
+// assignments: [{nama_proses, nik, nama}], smvByProcess: {nama_proses: smv}
+// Tiap assignment dihitung SMV PENUH proses itu (tidak dibagi), sesuai
+// keputusan bisnis -- jadi kalau 1 proses dipegang 2 orang, keduanya
+// sama-sama dianggap menguasai SMV penuh proses tersebut.
+function summarizeByOperator(assignments, smvByProcess){
   const map = {};
-  (list||[]).forEach(p=>{
-    const name = (p.nama_operator || p.namaOperator || '').trim() || '(Tanpa Nama)';
-    const smv = Number(p.smv) || 0;
+  (assignments||[]).forEach(a=>{
+    const name = (a.nama || '').trim() || '(Tanpa Nama)';
+    const smv = (smvByProcess && smvByProcess[a.nama_proses]) || 0;
     if(!map[name]) map[name] = { count:0, total:0 };
     map[name].count += 1;
     map[name].total += smv;
@@ -681,7 +685,10 @@ async function loadLineDetailProcesses(line, style){
     return;
   }
   try{
-    const list = await apiGet('/line-processes?line='+encodeURIComponent(line)+'&style='+encodeURIComponent(style));
+    const [list, assignments] = await Promise.all([
+      apiGet('/line-processes?line='+encodeURIComponent(line)+'&style='+encodeURIComponent(style)),
+      apiGet('/line-processes?resource=assignments&line='+encodeURIComponent(line)+'&style='+encodeURIComponent(style)),
+    ]);
     const bodyEl = document.getElementById('ldProcessBody');
     const opBodyEl = document.getElementById('ldOperatorBody');
     if(!bodyEl) return; // user sudah pindah halaman
@@ -690,22 +697,33 @@ async function loadLineDetailProcesses(line, style){
       if(opBodyEl) opBodyEl.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--muted);">-</td></tr>';
       return;
     }
-    bodyEl.innerHTML = list.map(p=>`
+    // Satu proses bisa punya lebih dari 1 operator -- kelompokkan assignment per nama_proses.
+    const assignByProcess = {};
+    assignments.forEach(a=>{
+      (assignByProcess[a.nama_proses] = assignByProcess[a.nama_proses] || []).push(a);
+    });
+    bodyEl.innerHTML = list.map(p=>{
+      const ops = assignByProcess[p.nama_proses] || [];
+      const opText = ops.length ? ops.map(a=>escapeHtml(a.nama)).join(', ') : '-';
+      return `
       <tr>
         <td class="num">${fmtNum(p.no_proses)}</td>
         <td>${escapeHtml(p.nama_proses||'-')}</td>
         <td class="num">${fmtNum(p.smv,2)}</td>
-        <td>${escapeHtml(p.nama_operator||'-')}</td>
+        <td>${opText}</td>
         <td>${escapeHtml(p.nama_mesin||'-')}</td>
-      </tr>`).join('');
+      </tr>`;
+    }).join('');
     if(opBodyEl){
-      const summary = summarizeByOperator(list);
-      opBodyEl.innerHTML = summary.map(s=>`
+      const smvByProcess = {};
+      list.forEach(p=>{ smvByProcess[p.nama_proses] = Number(p.smv)||0; });
+      const summary = summarizeByOperator(assignments, smvByProcess);
+      opBodyEl.innerHTML = summary.length ? summary.map(s=>`
         <tr>
           <td>${escapeHtml(s.name)}</td>
           <td class="num">${fmtNum(s.count)}</td>
           <td class="num">${fmtNum(s.total,2)}</td>
-        </tr>`).join('');
+        </tr>`).join('') : '<tr><td colspan="3" style="text-align:center;color:var(--muted);">Belum ada operator terpasang.</td></tr>';
     }
   }catch(err){
     const bodyEl = document.getElementById('ldProcessBody');
@@ -767,33 +785,37 @@ async function renderLineSkillMatrix(line, style){
   }
 
   try{
-    const rows = await apiGet('/line-processes?line='+encodeURIComponent(line)+'&style='+encodeURIComponent(style));
+    const [rows, assignments] = await Promise.all([
+      apiGet('/line-processes?line='+encodeURIComponent(line)+'&style='+encodeURIComponent(style)),
+      apiGet('/line-processes?resource=assignments&line='+encodeURIComponent(line)+'&style='+encodeURIComponent(style)),
+    ]);
     const wrap = document.getElementById('smxWrap');
     if(!rows.length){ wrap.innerHTML = '<div class="sm-empty">Belum ada breakdown proses tersimpan untuk style ini.</div>'; return; }
 
-    // Kumpulkan proses unik (kolom) & operator unik (baris). cellMap dipakai
-    // buat jaga-jaga kalau ada nama proses yang kebetulan dobel di breakdown
-    // yang sama (harusnya tidak terjadi, tapi dirata-rata biar aman).
+    // SMV per proses (dari breakdown, dipakai buat urutan kolom & nilai sel).
+    const processSmvMap = {};
     const processNames = [];
     const processSeen = new Set();
-    const operatorNames = [];
-    const operatorSeen = new Set();
-    const cellMap = {}; // key: operator||proses -> {sum, count}
-    const processSmvMap = {}; // proses -> {sum, count} -- dipakai buat urutan kolom
-
     rows.forEach(p=>{
       const proc = (p.nama_proses||'').trim();
-      const op = (p.nama_operator||'').trim();
-      if(!proc || !op) return;
+      if(!proc) return;
       if(!processSeen.has(proc)){ processSeen.add(proc); processNames.push(proc); }
-      if(!operatorSeen.has(op)){ operatorSeen.add(op); operatorNames.push(op); }
-      const key = op + '||' + proc;
-      if(!cellMap[key]) cellMap[key] = { sum:0, count:0 };
-      cellMap[key].sum += Number(p.smv) || 0;
-      cellMap[key].count += 1;
       if(!processSmvMap[proc]) processSmvMap[proc] = { sum:0, count:0 };
       processSmvMap[proc].sum += Number(p.smv) || 0;
       processSmvMap[proc].count += 1;
+    });
+
+    // Operator (baris) & isi sel dari assignments -- satu proses bisa punya
+    // beberapa operator sekarang, tiap operator dapat SMV PENUH proses itu.
+    const operatorNames = [];
+    const operatorSeen = new Set();
+    const cellMap = {}; // key: operator||proses -> smv (penuh, bukan rata-rata)
+    assignments.forEach(a=>{
+      const proc = (a.nama_proses||'').trim();
+      const op = (a.nama||'').trim();
+      if(!proc || !op || !processSmvMap[proc]) return;
+      if(!operatorSeen.has(op)){ operatorSeen.add(op); operatorNames.push(op); }
+      cellMap[op + '||' + proc] = processSmvMap[proc].sum / processSmvMap[proc].count;
     });
 
     // Kolom diurutkan dari SMV rata-rata proses terendah ke tertinggi (kiri ke kanan).
@@ -805,19 +827,17 @@ async function renderLineSkillMatrix(line, style){
     operatorNames.sort((a,b)=>a.localeCompare(b));
 
     if(!processNames.length || !operatorNames.length){
-      wrap.innerHTML = '<div class="sm-empty">Data proses belum lengkap (nama proses/operator kosong).</div>';
+      wrap.innerHTML = '<div class="sm-empty">Belum ada operator yang dipasangkan ke proses di style ini. Pasangkan lewat tab "Operational Breakdown".</div>';
       return;
     }
 
     const theadCols = processNames.map(p=>`<th>${escapeHtml(p)}</th>`).join('');
     const bodyRows = operatorNames.map(op=>{
       const cells = processNames.map(proc=>{
-        const key = op + '||' + proc;
-        const c = cellMap[key];
-        if(!c) return '<td class="smx-cell smx-empty-cell"></td>';
-        const avg = c.sum / c.count;
-        const g = smxGradeOf(avg);
-        return `<td class="smx-cell grade-${g}" title="${escapeHtml(proc)} — ${fmtNum(avg,2)} menit"><span class="smx-dot"></span></td>`;
+        const smv = cellMap[op + '||' + proc];
+        if(smv===undefined) return '<td class="smx-cell smx-empty-cell"></td>';
+        const g = smxGradeOf(smv);
+        return `<td class="smx-cell grade-${g}" title="${escapeHtml(proc)} — ${fmtNum(smv,2)} menit"><span class="smx-dot"></span></td>`;
       }).join('');
       return `<tr><td class="smx-rowhead">${escapeHtml(op)}</td>${cells}</tr>`;
     }).join('');
@@ -1258,9 +1278,12 @@ async function buildDashboardHtml(period, refDate){
         return `
         <div class="top3-card rank-${i+1}">
           <div class="top3-medal">${MEDALS[i]}</div>
+          <div class="top3-rank-label">${RANK_LABEL[i]}</div>
           <div class="top3-line">Line ${escapeHtml(r.line)}</div>
+          <div class="top3-style">${escapeHtml(r.style || 'Belum ada style running')}</div>
           <div class="top3-eff">${r.eff}%</div>
-          <div class="top3-output">${escapeHtml(r.style || 'Tanpa style')} · <b>${fmtNum(r.outputActual)}</b> pcs</div>
+          <div class="top3-eff-label">Efisiensi</div>
+          <div class="top3-output">Output Aktual: <b>${fmtNum(r.outputActual)}</b></div>
         </div>`;
       }).join('')}
     </div>`;
@@ -2209,7 +2232,7 @@ async function renderIeLineConfig(){
       btn.addEventListener('click', async ()=>{
         if(!confirm('Hapus manpower NIK '+btn.dataset.nik+' dari database?')) return;
         try{
-          await apiDelete('/line-processes?resource=manpower&nik='+encodeURIComponent(btn.dataset.nik));
+          await apiDelete('/manpower?nik='+encodeURIComponent(btn.dataset.nik));
           showToast('Manpower dihapus.');
           await loadManpowerList();
         }catch(err){ showToast('Gagal: '+err.message); }
@@ -2221,7 +2244,7 @@ async function renderIeLineConfig(){
     const body = document.getElementById('mpListBody');
     body.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--muted);">Memuat...</td></tr>';
     try{
-      __manpowerList = await apiGet('/line-processes?resource=manpower');
+      __manpowerList = await apiGet('/manpower');
       renderMpList();
     }catch(err){
       body.innerHTML = '<tr><td colspan="3" style="color:var(--red);">Gagal memuat: '+err.message+'</td></tr>';
@@ -2246,7 +2269,7 @@ async function renderIeLineConfig(){
     const saveBtn = document.getElementById('mpSaveBtn');
     saveBtn.disabled = true; saveBtn.textContent = 'Menyimpan...';
     try{
-      await apiPost('/line-processes?resource=manpower', { rows: mpParsedRows });
+      await apiPost('/manpower', { rows: mpParsedRows });
       showToast(mpParsedRows.length+' manpower tersimpan.');
       document.getElementById('mpPaste').value = '';
       mpParsedRows = [];
@@ -2295,7 +2318,7 @@ async function renderIeOpBreakdown(){
 
   async function loadManpowerForDatalist(){
     try{
-      obManpowerList = await apiGet('/line-processes?resource=manpower');
+      obManpowerList = await apiGet('/manpower');
       document.getElementById('obDatalist').innerHTML = obManpowerList.map(m=>`<option value="${escapeHtml(m.nik)} - ${escapeHtml(m.nama)}"></option>`).join('');
     }catch(err){ /* datalist kosong kalau gagal, tidak fatal -- tombol Pasang akan tetap menolak input yang tidak cocok */ }
   }
@@ -2326,18 +2349,28 @@ async function renderIeOpBreakdown(){
     }
     wrap.innerHTML = '<p class="sub" style="text-align:center;padding:20px 0;">Memuat breakdown...</p>';
     try{
-      const list = await apiGet('/line-processes?line='+encodeURIComponent(line)+'&style='+encodeURIComponent(style));
+      const [list, assignments] = await Promise.all([
+        apiGet('/line-processes?line='+encodeURIComponent(line)+'&style='+encodeURIComponent(style)),
+        apiGet('/line-processes?resource=assignments&line='+encodeURIComponent(line)+'&style='+encodeURIComponent(style)),
+      ]);
       if(!list.length){
         wrap.innerHTML = '<p class="sub" style="text-align:center;padding:20px 0;">Belum ada breakdown untuk Line+Style ini.</p>';
         return;
       }
-      const emptyCount = list.filter(p=>!p.nik).length;
-      const summary = summarizeByOperator(list);
+      // Satu proses bisa dipasangkan ke lebih dari 1 operator -- kelompokkan per nama_proses.
+      const assignByProcess = {};
+      assignments.forEach(a=>{ (assignByProcess[a.nama_proses] = assignByProcess[a.nama_proses] || []).push(a); });
+      const smvByProcess = {};
+      list.forEach(p=>{ smvByProcess[p.nama_proses] = Number(p.smv)||0; });
+
+      const emptyCount = list.filter(p=>!(assignByProcess[p.nama_proses]||[]).length).length;
+      const summary = summarizeByOperator(assignments, smvByProcess);
       wrap.innerHTML = `
         <h3 style="margin-top:18px;display:flex;align-items:center;flex-wrap:wrap;">Breakdown — Line ${escapeHtml(line)} · ${escapeHtml(style)} ${obDot(emptyCount)}</h3>
+        <p class="sub" style="margin:0 0 10px;">Satu proses boleh dipasangkan ke lebih dari 1 operator — tiap operator dihitung SMV penuh proses itu.</p>
         <div class="tbl-wrap">
           <table>
-            <thead><tr><th>No.</th><th>Nama Proses</th><th>SMV</th><th>Nama Mesin</th><th>Manpower</th><th>Cocokkan</th></tr></thead>
+            <thead><tr><th>No.</th><th>Nama Proses</th><th>SMV</th><th>Nama Mesin</th><th>Manpower Terpasang</th><th>Tambah Operator</th></tr></thead>
             <tbody id="obBody"></tbody>
           </table>
         </div>
@@ -2352,45 +2385,49 @@ async function renderIeOpBreakdown(){
         </div>
       `;
       const body = document.getElementById('obBody');
-      body.innerHTML = list.map(p=>`
-        <tr data-id="${p.id}">
+      body.innerHTML = list.map(p=>{
+        const ops = assignByProcess[p.nama_proses] || [];
+        const chips = ops.length
+          ? ops.map(a=>`<span class="ob-chip">${escapeHtml(a.nama)}<button type="button" class="ob-chip-x" data-assign-id="${a.id}" title="Lepas">&times;</button></span>`).join('')
+          : '<span style="color:var(--muted);">Kosong</span>';
+        return `
+        <tr data-proses="${escapeHtml(p.nama_proses)}">
           <td class="num">${fmtNum(p.no_proses)}</td>
           <td>${escapeHtml(p.nama_proses||'-')}</td>
           <td class="num">${fmtNum(p.smv,2)}</td>
           <td>${escapeHtml(p.nama_mesin||'-')}</td>
-          <td>${p.nama_operator ? escapeHtml(p.nama_operator) : '<span style="color:var(--muted);">Kosong</span>'}</td>
+          <td><div class="ob-chip-wrap">${chips}</div></td>
           <td>
             <div style="display:flex;gap:4px;flex-wrap:wrap;">
-              <input type="text" list="obDatalist" class="ob-match-input" data-id="${p.id}" placeholder="cari NIK/nama" style="padding:6px 8px;border:1px solid var(--line);border-radius:8px;font-size:12px;width:150px;">
-              <button type="button" class="btn ghost sm ob-assign-btn" data-id="${p.id}">Pasang</button>
-              ${p.nik ? `<button type="button" class="btn danger sm ob-unassign-btn" data-id="${p.id}">Lepas</button>` : ''}
+              <input type="text" list="obDatalist" class="ob-match-input" data-proses="${escapeHtml(p.nama_proses)}" placeholder="cari NIK/nama" style="padding:6px 8px;border:1px solid var(--line);border-radius:8px;font-size:12px;width:150px;">
+              <button type="button" class="btn ghost sm ob-assign-btn" data-proses="${escapeHtml(p.nama_proses)}">+ Tambah</button>
             </div>
           </td>
-        </tr>`).join('');
+        </tr>`;
+      }).join('');
 
       body.querySelectorAll('.ob-assign-btn').forEach(btn=>{
         btn.addEventListener('click', async ()=>{
-          const id = btn.dataset.id;
-          const input = body.querySelector('.ob-match-input[data-id="'+id+'"]');
+          const namaProses = btn.dataset.proses;
+          const input = body.querySelector('.ob-match-input[data-proses="'+CSS.escape(namaProses)+'"]');
           const val = (input.value||'').trim();
           const nik = val.split(' - ')[0].trim();
           const match = obManpowerList.find(m=>m.nik===nik);
           if(!match){ showToast('Pilih NIK/nama dari daftar saran dulu.'); return; }
           btn.disabled = true;
           try{
-            await apiPatch('/line-processes', { id, nik: match.nik });
-            showToast('Dipasang: '+match.nama);
+            await apiPost('/line-processes?resource=assignments', { line, style, namaProses, nik: match.nik });
+            showToast('Ditambahkan: '+match.nama);
             loadBreakdown();
           }catch(err){ showToast('Gagal: '+err.message); btn.disabled = false; }
         });
       });
-      body.querySelectorAll('.ob-unassign-btn').forEach(btn=>{
+      body.querySelectorAll('.ob-chip-x').forEach(btn=>{
         btn.addEventListener('click', async ()=>{
-          const id = btn.dataset.id;
           btn.disabled = true;
           try{
-            await apiPatch('/line-processes', { id, nik: null });
-            showToast('Manpower dilepas dari proses ini.');
+            await apiDelete('/line-processes?resource=assignments&id='+encodeURIComponent(btn.dataset.assignId));
+            showToast('Operator dilepas dari proses ini.');
             loadBreakdown();
           }catch(err){ showToast('Gagal: '+err.message); btn.disabled = false; }
         });
@@ -2435,7 +2472,8 @@ async function renderIeSkillMatrix(){
     </div>
   `;
 
-  let smAllRows = [];
+  let smAllProcessRows = [];
+  let smAllAssignments = [];
 
   function gradeOf(total){
     if(total > 1) return 'a';
@@ -2444,17 +2482,25 @@ async function renderIeSkillMatrix(){
   }
   function gradeLabel(g){ return g==='a' ? 'Grade A' : g==='b' ? 'Grade B' : 'Grade C'; }
 
-  function computeOperators(rows){
+  function computeOperators(processRows, assignments){
+    const smvMap = {}, mesinMap = {};
+    processRows.forEach(p=>{
+      const key = p.line+'||'+p.style+'||'+(p.nama_proses||'').trim();
+      smvMap[key] = Number(p.smv)||0;
+      mesinMap[key] = (p.nama_mesin||'').trim();
+    });
     const map = {};
-    rows.forEach(p=>{
-      const name = (p.nama_operator||'').trim();
-      if(!name) return; // baris tanpa nama operator dilewati
-      const smv = Number(p.smv)||0;
+    assignments.forEach(a=>{
+      const name = (a.nama||'').trim();
+      if(!name) return; // assignment tanpa nama dilewati
+      const key = a.line+'||'+a.style+'||'+(a.nama_proses||'').trim();
+      const smv = smvMap[key] || 0;
       if(!map[name]) map[name] = { name, total:0, count:0, lines:new Set(), mesin:new Set() };
       map[name].total += smv;
       map[name].count += 1;
-      if(p.line) map[name].lines.add(p.line);
-      if(p.nama_mesin) map[name].mesin.add(p.nama_mesin);
+      if(a.line) map[name].lines.add(a.line);
+      const mesin = mesinMap[key];
+      if(mesin) map[name].mesin.add(mesin);
     });
     return Object.values(map).sort((a,b)=>b.total-a.total);
   }
@@ -2497,7 +2543,7 @@ async function renderIeSkillMatrix(){
 
   function applyFilters(){
     const search = document.getElementById('smSearch').value.trim().toLowerCase();
-    let operators = computeOperators(smAllRows);
+    let operators = computeOperators(smAllProcessRows, smAllAssignments);
     if(search) operators = operators.filter(o=>o.name.toLowerCase().includes(search));
     renderStats(operators);
     renderGrid(operators);
@@ -2510,7 +2556,13 @@ async function renderIeSkillMatrix(){
     const line = document.getElementById('smLine').value;
     try{
       const qs = line ? ('?line='+encodeURIComponent(line)) : '';
-      smAllRows = await apiGet('/line-processes'+qs);
+      const assignQs = line ? ('?resource=assignments&line='+encodeURIComponent(line)) : '?resource=assignments';
+      const [processRows, assignments] = await Promise.all([
+        apiGet('/line-processes'+qs),
+        apiGet('/line-processes'+assignQs),
+      ]);
+      smAllProcessRows = processRows;
+      smAllAssignments = assignments;
       applyFilters();
     }catch(err){
       grid.innerHTML = '<div class="sm-empty" style="color:var(--red);">Gagal memuat: '+err.message+'</div>';
