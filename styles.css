@@ -201,14 +201,11 @@
   @media (max-width:760px){ .chart-grid{grid-template-columns:1fr;} #appRoot{margin:0;border-radius:0;} }
   /* ---- Pembungkus canvas Chart.js: tinggi tetap, chart bar bisa digeser
      horizontal kalau kategorinya (line) banyak & layar sempit ---- */
-.chart-canvas-inner{position:relative;height:220px;width:100%;overflow:visible;}
-.chart-canvas-inner canvas{display:block !important;max-width:100%;}
-.chart-scroll-x{overflow-x:auto;overflow-y:visible;-webkit-overflow-scrolling:touch;}
-.chart-scroll-x .chart-canvas-inner{height:220px;}
-.chart-box{overflow:visible;}
-.donut-wrap{overflow:visible;width:100%;}
-.donut-wrap canvas{display:block !important;}
-@media (max-width:520px){ .chart-canvas-inner{height:210px;} }
+.chart-canvas-inner{position:relative;height:220px;width:100%;min-width:0;}
+  .chart-canvas-inner canvas{width:100% !important;height:100% !important;display:block;}
+  .chart-scroll-x{overflow-x:auto;-webkit-overflow-scrolling:touch;width:100%;}
+  .chart-scroll-x .chart-canvas-inner{height:220px;}
+  @media (max-width:520px){ .chart-canvas-inner{height:200px;} }
   .donut-wrap{display:flex;flex-direction:column;align-items:center;}
   .donut-center{font-family:var(--disp);font-weight:800;font-size:20px;color:var(--ink);}
 
