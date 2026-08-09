@@ -1452,7 +1452,7 @@ function renderEffChart(canvasId, rows){
   if(!ctx || !window.Chart) return;
   const labelled = rows.filter(r=>r.target>0 || r.outputActual>0);
   applyScrollableBarWidth(ctx, labelled.length);
-  new Chart(ctx, {
+  const chart = new Chart(ctx, {
     type: 'bar',
     data: {
       labels: labelled.map(r=>'Line '+r.line),
@@ -1480,7 +1480,7 @@ function renderEffChart(canvasId, rows){
 function renderStatusDonut(canvasId, counts){
   const ctx = document.getElementById(canvasId);
   if(!ctx || !window.Chart) return;
-  new Chart(ctx, {
+  const chart = new Chart(ctx, {
     type: 'doughnut',
     data: {
       labels: ['Baik','Waspada','Kritis','Belum Update','Target Kosong'],
