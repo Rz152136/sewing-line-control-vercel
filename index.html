@@ -1114,6 +1114,8 @@ async function buildDashboardHtml(period, refDate){
   }
 
   const dailyTrend = []; // [{date, output, target}] -- dipakai chart tren, hanya line Assembly (konsisten dgn KPI)
+  const dailyAttendancePct = []; // persentase kehadiran per hari -- dipakai buat rata-rata mingguan/bulanan
+  const dailyContribution = [];  // contribution per hari -- dipakai buat rata-rata mingguan/bulanan
   perDateOutputs.forEach(({date, qtyLogs, attendances})=>{
     allLines.forEach(l=>{
       const c = effectiveConfigAsOf(l, date);
@@ -1144,20 +1146,30 @@ async function buildDashboardHtml(period, refDate){
       if(!dayOutput[q.line] || cum > dayOutput[q.line]) dayOutput[q.line] = cum;
     });
     Object.keys(dayOutput).forEach(l=>{ perLine[l].output += dayOutput[l]; });
-    let dayOutputSum = 0, dayTargetSum = 0;
+    let dayOutputSum = 0, dayTargetSum = 0, dayMcShiftSum = 0;
     allLines.forEach(l=>{
       const c = effectiveConfigAsOf(l, date);
       if(!c || c.line_type==='preparation') return;
       const fullTarget = c.target_output > 0 ? c.target_output : (c.smv>0 ? (c.mp*c.wh*60/c.smv) : 0);
       dayTargetSum += fullTarget;
       dayOutputSum += dayOutput[l] || 0;
+      dayMcShiftSum += (Number(c.mesin)||0) / 8 * 7;
     });
     dailyTrend.push({ date, output: dayOutputSum, target: dayTargetSum });
+    if(dayMcShiftSum > 0){
+      dailyContribution.push((dayOutputSum/dayMcShiftSum) * grossMargin);
+    }
+    let dayPresent = 0, dayAbsent = 0;
     attendances.forEach(a=>{
       if(!perLine[a.line]) { allLines.add(a.line); perLine[a.line] = { line:a.line, target:0, targetFull:0, output:0, present:0, absent:0, mesin:0, hasConfig:false, style:'', lineType:'assembly' }; }
       perLine[a.line].present += Number(a.present_count)||0;
       perLine[a.line].absent += Number(a.absent_count)||0;
+      dayPresent += Number(a.present_count)||0;
+      dayAbsent += Number(a.absent_count)||0;
     });
+    if(dayPresent + dayAbsent > 0){
+      dailyAttendancePct.push((dayPresent/(dayPresent+dayAbsent))*100);
+    }
   });
 
   const rows = LINES.map(l=>perLine[l]).concat(
@@ -1205,6 +1217,17 @@ async function buildDashboardHtml(period, refDate){
   const overallProductivity = totalMcShift8h>0 ? (totalOutputActual/totalMcShift8h) : null;
   const overallContribution = overallProductivity!==null ? overallProductivity * grossMargin : null;
   const absenPct = (totalPresent+totalAbsent)>0 ? (totalAbsent/(totalPresent+totalAbsent))*100 : null;
+
+  const avgAttendancePct = dailyAttendancePct.length
+    ? dailyAttendancePct.reduce((a,b)=>a+b,0) / dailyAttendancePct.length
+    : null;
+  const avgContribution = dailyContribution.length
+    ? dailyContribution.reduce((a,b)=>a+b,0) / dailyContribution.length
+    : null;
+
+  // Mingguan/Bulanan = rata-rata harian; Harian = angka periode itu sendiri (sama saja, 1 hari).
+  const attendanceDisplayPct = (period==='weekly' || period==='monthly') ? avgAttendancePct : (absenPct===null?null:(100-absenPct));
+  const contributionDisplay = (period==='weekly' || period==='monthly') ? avgContribution : overallContribution;
 
   const counts = { ok:0, watch:0, risk:0, empty:0, notarget:0 };
   normalRows.forEach(r=>counts[r.cls]++);
@@ -1297,10 +1320,10 @@ async function buildDashboardHtml(period, refDate){
       ${kpiCard({icon:'target',tint:'var(--panel3)',color:'var(--accent)',label:'Target Harian Penuh',value:fmtNum(totalTargetFull),unit:'unit',sub:'Target 1 hari penuh · Line Assembly'})}
       ${kpiCard({icon:'trend',tint: blcProduksi>=0?'var(--green-bg)':'var(--red-bg)', color: blcProduksi>=0?'var(--green)':'var(--red)', label:'BLC Produksi', value:(blcProduksi>0?'+':'')+fmtNum(blcProduksi), unit:'unit', sub:'Output − Target · '+pNoun+' · Line Assembly'})}
       ${kpiCard({icon:'shield',tint: avgEff===null? 'var(--panel3)' : avgEff>=75?'var(--green-bg)':avgEff>=55?'var(--watch-bg)':'var(--red-bg)', color: avgEff===null?'var(--muted)':avgEff>=75?'var(--green)':avgEff>=55?'var(--amber-ink)':'var(--red)', label:'Rata-rata Efisiensi', value:avgEff===null?'-':avgEff+'%', sub:'Target ≥ 75% · Line Assembly'})}
-      ${kpiCard({icon:'users',tint: absenPct!==null && absenPct>5 ? 'var(--red-bg)':'var(--green-bg)', color: absenPct!==null && absenPct>5 ? 'var(--red)':'var(--green)', label:'Hadir / Tidak Hadir', value:fmtNum(totalPresent), unit:'/ '+fmtNum(totalAbsent), sub: absenPct===null?'Belum ada data':'Absensi '+fmtNum(absenPct,1)+'% · Semua Line'})}
+      ${kpiCard({icon:'users',tint: attendanceDisplayPct!==null && attendanceDisplayPct<95 ? 'var(--red-bg)':'var(--green-bg)', color: attendanceDisplayPct!==null && attendanceDisplayPct<95 ? 'var(--red)':'var(--green)', label:'Kehadiran', value: attendanceDisplayPct===null?'-':fmtNum(attendanceDisplayPct,1)+'%', unit:'', sub: attendanceDisplayPct===null?'Belum ada data':((period==='weekly'||period==='monthly')?'Rata-rata harian · Semua Line':'Semua Line')})}
       ${confidentialKpis}
       ${kpiCard({icon:'trend',tint:'var(--accent-soft)',color:'var(--accent)',label:'Rata-rata Productivity',value:overallProductivity===null?'-':fmtNum(overallProductivity,2),unit:'pcs/mc-shift',sub:'Line Assembly'})}
-      ${kpiCard({icon:'trend',tint:'var(--accent-soft)',color:'var(--accent)',label:'Contribution',value:overallContribution===null?'-':fmtNum(overallContribution,0),unit:'/mc-shift',sub:'Productivity × Gross Margin · Line Assembly'})}
+      ${kpiCard({icon:'trend',tint:'var(--accent-soft)',color:'var(--accent)',label:'Contribution',value:contributionDisplay===null?'-':fmtNum(contributionDisplay,0),unit:'/mc-shift',sub:(period==='weekly'||period==='monthly')?'Rata-rata harian · Line Assembly':'Productivity × Gross Margin · Line Assembly'})}
     </div>
 
     <h3 style="margin-top:22px;">&#127942; Top 3 Line — Efisiensi Tertinggi</h3>
