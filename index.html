@@ -1474,6 +1474,7 @@ function renderEffChart(canvasId, rows){
       scales:{ y:{ beginAtZero:true, grid:{ color:'#e8e9e7' } }, x:{ grid:{ display:false } } }
     }
   });
+  requestAnimationFrame(()=>chart.resize()); 
 }
 
 function renderStatusDonut(canvasId, counts){
@@ -1491,6 +1492,7 @@ function renderStatusDonut(canvasId, counts){
     },
     options: { responsive:true, maintainAspectRatio:false, cutout:'72%', plugins:{ legend:{ display:false }, tooltip:{ enabled:true } } }
   });
+requestAnimationFrame(()=>chart.resize()); 
 }
 
 function renderMcShiftChart(canvasId, rows){
