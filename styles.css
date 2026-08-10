@@ -198,11 +198,17 @@
   .chart-box .chart-title{font-family:var(--disp);font-size:13.5px;font-weight:700;color:var(--ink);margin:0 0 2px;}
   .chart-box .chart-sub{font-size:11px;color:var(--muted);margin:0 0 12px;}
   .chart-grid{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);gap:14px;margin-top:16px;}
+.chart-grid > *{min-width:0;overflow:hidden;}
+.chart-box{min-width:0;overflow-x:hidden;}
+.donut-wrap{min-width:0;}
+.panel{min-width:0;overflow-x:hidden;}
+.kpis{min-width:0;}
+.andon{min-width:0;}
   .chart-grid.full{grid-template-columns:1fr;}
   @media (max-width:760px){ .chart-grid{grid-template-columns:1fr;} #appRoot{margin:0;border-radius:0;} }
   /* ---- Pembungkus canvas Chart.js: tinggi tetap, chart bar bisa digeser
      horizontal kalau kategorinya (line) banyak & layar sempit ---- */
-  .chart-canvas-inner{position:relative;height:220px;width:100%;overflow:visible;}
+  .chart-canvas-inner{position:relative;height:220px;width:100%;min-width:0;overflow:visible;}
   .chart-canvas-inner canvas{display:block !important;max-width:100%;}
   .chart-scroll-x{overflow-x:auto;overflow-y:visible;-webkit-overflow-scrolling:touch;}
   .chart-scroll-x .chart-canvas-inner{height:220px;}
