@@ -1400,7 +1400,7 @@ function renderTrendChart(canvasId, dailyTrend){
     const dt = new Date(d.date+'T00:00:00');
     return dt.toLocaleDateString('id-ID',{day:'numeric',month:'short'});
   });
-  new Chart(ctx, {
+  const chart = new Chart(ctx, {
     type: 'line',
     data: {
       labels,
@@ -1434,6 +1434,7 @@ function renderTrendChart(canvasId, dailyTrend){
       scales:{ y:{ beginAtZero:true, grid:{ color:'#e8e9e7' } }, x:{ grid:{ display:false } } }
     }
   });
+  requestAnimationFrame(()=>chart.resize());
 }
 
 // Chart bar dengan kategori per-line (Efisiensi/MC Shift/Productivity) diberi
@@ -1474,7 +1475,7 @@ function renderEffChart(canvasId, rows){
       scales:{ y:{ beginAtZero:true, grid:{ color:'#e8e9e7' } }, x:{ grid:{ display:false } } }
     }
   });
-  requestAnimationFrame(()=>chart.resize()); 
+  requestAnimationFrame(()=>chart.resize());
 }
 
 function renderStatusDonut(canvasId, counts){
@@ -1492,7 +1493,7 @@ function renderStatusDonut(canvasId, counts){
     },
     options: { responsive:true, maintainAspectRatio:false, cutout:'72%', plugins:{ legend:{ display:false }, tooltip:{ enabled:true } } }
   });
-requestAnimationFrame(()=>chart.resize()); 
+  requestAnimationFrame(()=>chart.resize());
 }
 
 function renderMcShiftChart(canvasId, rows){
@@ -1501,7 +1502,7 @@ function renderMcShiftChart(canvasId, rows){
   const labelled = rows.filter(r=>r.mcShift8h>0);
   if(!labelled.length) return;
   applyScrollableBarWidth(ctx, labelled.length);
-  new Chart(ctx, {
+  const chart = new Chart(ctx, {
     type: 'bar',
     data: {
       labels: labelled.map(r=>'Line '+r.line),
@@ -1518,6 +1519,7 @@ function renderMcShiftChart(canvasId, rows){
       scales:{ y:{ beginAtZero:true, grid:{ color:'#e8e9e7' } }, x:{ grid:{ display:false } } }
     }
   });
+  requestAnimationFrame(()=>chart.resize());
 }
 
 function renderProductivityChart(canvasId, rows){
@@ -1526,7 +1528,7 @@ function renderProductivityChart(canvasId, rows){
   const labelled = rows.filter(r=>r.productivity!==null);
   if(!labelled.length) return;
   applyScrollableBarWidth(ctx, labelled.length);
-  new Chart(ctx, {
+  const chart = new Chart(ctx, {
     type: 'bar',
     data: {
       labels: labelled.map(r=>'Line '+r.line),
@@ -1543,6 +1545,7 @@ function renderProductivityChart(canvasId, rows){
       scales:{ y:{ beginAtZero:true, grid:{ color:'#e8e9e7' } }, x:{ grid:{ display:false } } }
     }
   });
+  requestAnimationFrame(()=>chart.resize());
 }
 
 // ================================================================
