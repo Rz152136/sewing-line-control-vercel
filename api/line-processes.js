@@ -177,11 +177,12 @@ module.exports = async (req, res) => {
 
   if (req.method === 'GET') {
     // Semua role boleh baca (dipakai untuk tampilan Detail Line & Skill Matrix).
+    // Breakdown proses sekarang murni per Style (bukan lagi per Line+Style) --
+    // style yang sama dipakai di line manapun otomatis pakai breakdown yang sama.
     let query = supabase
       .from('line_processes')
       .select('*')
       .order('no_proses', { ascending: true });
-    if (req.query.line) query = query.eq('line', req.query.line);
     if (req.query.style) query = query.eq('style', req.query.style);
     const { data, error } = await query;
     if (error) return res.status(500).json({ error: error.message });
@@ -197,25 +198,25 @@ module.exports = async (req, res) => {
     }
 
     const b = req.body || {};
-    const line = String(b.line || '').trim();
     const style = String(b.style || '').trim();
     const rows = Array.isArray(b.rows) ? b.rows : [];
 
-    if (!line || !style) {
-      return res.status(400).json({ error: 'Line dan Style wajib diisi.' });
+    if (!style) {
+      return res.status(400).json({ error: 'Style wajib diisi.' });
     }
     if (!rows.length) {
       return res.status(400).json({ error: 'Tidak ada baris proses untuk disimpan.' });
     }
 
-    // Paste dari Excel = ganti total breakdown untuk line+style ini (No.
-    // Proses/Nama Proses/SMV/Nama Mesin). Operator TIDAK disimpan di sini
-    // lagi -- lihat resource=assignments di atas, yang dikunci ke nama_proses
-    // sehingga otomatis tetap aman walau breakdown ini di-paste ulang.
+    // Paste dari Excel = ganti total breakdown untuk style ini (No.
+    // Proses/Nama Proses/SMV/Nama Mesin). Breakdown ini berlaku untuk style
+    // itu di LINE MANAPUN dia dijalankan -- tidak perlu diulang per line lagi.
+    // Operator TIDAK disimpan di sini -- lihat resource=assignments di atas,
+    // yang dikunci ke (line, style, nama_proses) sehingga tetap per-line dan
+    // aman walau breakdown ini di-paste ulang.
     const { error: delErr } = await supabase
       .from('line_processes')
       .delete()
-      .eq('line', line)
       .eq('style', style);
 
     if (delErr) return res.status(500).json({ error: delErr.message });
@@ -223,7 +224,6 @@ module.exports = async (req, res) => {
     const now = new Date().toISOString();
     const toInsert = rows.map((r) => ({
       id: genId('lp'),
-      line,
       style,
       no_proses: Number(r.noProses) || 0,
       nama_proses: String(r.namaProses || '').trim(),
@@ -252,23 +252,23 @@ module.exports = async (req, res) => {
       return res.status(err.status).json({ error: err.message });
     }
 
-    const line = String(req.query.line || '').trim();
     const style = String(req.query.style || '').trim();
-    if (!line || !style) {
-      return res.status(400).json({ error: 'Line dan Style wajib diisi.' });
+    if (!style) {
+      return res.status(400).json({ error: 'Style wajib diisi.' });
     }
 
     const { error } = await supabase
       .from('line_processes')
       .delete()
-      .eq('line', line)
       .eq('style', style);
     if (error) return res.status(500).json({ error: error.message });
 
+    // Breakdown proses style ini hilang di semua line -- ikut bersihkan
+    // SEMUA assignment operator untuk style ini di line manapun, supaya
+    // tidak jadi sampah data yang nunjuk ke proses yang sudah tidak ada.
     await supabase
       .from('line_process_assignments')
       .delete()
-      .eq('line', line)
       .eq('style', style);
     // (kalau baris ini gagal, tidak dianggap fatal -- breakdown utamanya sudah kehapus)
 
