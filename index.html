@@ -686,7 +686,7 @@ async function loadLineDetailProcesses(line, style){
   }
   try{
     const [list, assignments] = await Promise.all([
-      apiGet('/line-processes?line='+encodeURIComponent(line)+'&style='+encodeURIComponent(style)),
+      apiGet('/line-processes?style='+encodeURIComponent(style)),
       apiGet('/line-processes?resource=assignments&line='+encodeURIComponent(line)+'&style='+encodeURIComponent(style)),
     ]);
     const bodyEl = document.getElementById('ldProcessBody');
@@ -786,7 +786,7 @@ async function renderLineSkillMatrix(line, style){
 
   try{
     const [rows, assignments] = await Promise.all([
-      apiGet('/line-processes?line='+encodeURIComponent(line)+'&style='+encodeURIComponent(style)),
+      apiGet('/line-processes?style='+encodeURIComponent(style)),
       apiGet('/line-processes?resource=assignments&line='+encodeURIComponent(line)+'&style='+encodeURIComponent(style)),
     ]);
     const wrap = document.getElementById('smxWrap');
@@ -1930,15 +1930,12 @@ async function renderIeLineConfig(){
     </div>
     <div class="panel">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;">
-        <h2 style="margin:0;">Breakdown Proses per Line</h2>
+        <h2 style="margin:0;">Breakdown Proses per Style</h2>
         <button type="button" class="btn green sm" onclick="goToIeSub('skillmatrix')">Lihat Skill Matrix →</button>
       </div>
-      <p class="sub">Breakdown No. Proses / Nama Proses / SMV / Nama Mesin per Style — TANPA operator (operator dipasang di panel "Cocokkan Manpower" di bawah, biar ganti-ganti orang gampang tanpa perlu paste ulang breakdown). Copy range dari Excel (kolom sesuai urutan itu), lalu paste di kotak bawah ini. Simpan ulang untuk Line+Style yang sama akan menimpa SMV/Nama Mesin-nya, tapi operator yang sudah dipasang tetap aman selama nama prosesnya sama persis.</p>
+      <p class="sub">Breakdown No. Proses / Nama Proses / SMV / Nama Mesin cukup diisi SEKALI per Style — berlaku untuk Style itu di line manapun dia dijalankan, tidak perlu diulang per line. Operator TIDAK disimpan di sini (dipasang per Line di tab "Operational Breakdown", biar ganti-ganti orang gampang tanpa perlu paste ulang breakdown). Copy range dari Excel (kolom sesuai urutan itu), lalu paste di kotak bawah ini. Simpan ulang untuk Style yang sama akan menimpa SMV/Nama Mesin-nya, tapi operator yang sudah dipasang di tiap line tetap aman selama nama prosesnya sama persis.</p>
       <div class="field-row">
-        <div class="field"><label>Line</label>
-          <select id="lpLine">${LINES.map(l=>`<option value="${l}">${l}</option>`).join('')}</select>
-        </div>
-        <div class="field"><label>Style</label><input type="text" id="lpStyle" placeholder="harus sama dengan Style yang berjalan"></div>
+        <div class="field"><label>Style</label><input type="text" id="lpStyle" placeholder="cth: STY-1234"></div>
       </div>
       <div class="field">
         <label>Paste dari Excel (No. Proses, Nama Proses, SMV, Nama Mesin)</label>
@@ -1947,7 +1944,7 @@ async function renderIeLineConfig(){
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
         <button type="button" class="btn ghost sm" id="lpParseBtn">Parse &amp; Preview</button>
         <button type="button" class="btn primary sm" id="lpSaveBtn" disabled>Simpan Semua</button>
-        <button type="button" class="btn danger sm" id="lpClearBtn">Hapus Semua (Line+Style ini)</button>
+        <button type="button" class="btn danger sm" id="lpClearBtn">Hapus Semua (Style ini)</button>
       </div>
       <p id="lpParseError" style="color:var(--red);font-size:12.5px;min-height:1em;"></p>
       <div class="tbl-wrap" id="lpPreviewWrap" style="display:none;">
@@ -2197,15 +2194,14 @@ async function renderIeLineConfig(){
   document.getElementById('lpSaveBtn').addEventListener('click', async ()=>{
     const errEl = document.getElementById('lpParseError');
     errEl.textContent = '';
-    const line = document.getElementById('lpLine').value;
     const style = document.getElementById('lpStyle').value.trim();
-    if(!style){ errEl.textContent = 'Isi Style dulu (harus sama dengan Style yang berjalan di line ini).'; return; }
+    if(!style){ errEl.textContent = 'Isi Style dulu.'; return; }
     if(!lpParsedRows.length){ errEl.textContent = 'Belum ada data hasil parse. Klik "Parse & Preview" dulu.'; return; }
     const saveBtn = document.getElementById('lpSaveBtn');
     saveBtn.disabled = true; saveBtn.textContent = 'Menyimpan...';
     try{
-      await apiPost('/line-processes', { line, style, rows: lpParsedRows });
-      showToast('Breakdown proses line '+line+' style "'+style+'" tersimpan ('+lpParsedRows.length+' baris). Lanjut ke tab "Operational Breakdown" untuk pasangkan manpower-nya.');
+      await apiPost('/line-processes', { style, rows: lpParsedRows });
+      showToast('Breakdown proses style "'+style+'" tersimpan ('+lpParsedRows.length+' baris). Berlaku untuk style ini di line manapun. Lanjut ke tab "Operational Breakdown" untuk pasangkan manpower per line.');
       document.getElementById('lpPaste').value = '';
       lpParsedRows = [];
       renderLpPreview([]);
@@ -2214,12 +2210,11 @@ async function renderIeLineConfig(){
   });
 
   document.getElementById('lpClearBtn').addEventListener('click', async ()=>{
-    const line = document.getElementById('lpLine').value;
     const style = document.getElementById('lpStyle').value.trim();
     if(!style){ showToast('Isi Style dulu.'); return; }
-    if(!confirm('Hapus semua breakdown proses untuk Line '+line+' — Style "'+style+'"? Ini juga akan menghapus semua pasangan operator di style ini.')) return;
+    if(!confirm('Hapus breakdown proses Style "'+style+'"? Ini akan menghapus breakdown-nya di SEMUA line, sekaligus semua pasangan operator yang pakai style ini di line manapun.')) return;
     try{
-      await apiDelete('/line-processes?line='+encodeURIComponent(line)+'&style='+encodeURIComponent(style));
+      await apiDelete('/line-processes?style='+encodeURIComponent(style));
       showToast('Breakdown dihapus.');
     }catch(err){ showToast('Gagal: '+err.message); }
   });
@@ -2319,13 +2314,13 @@ async function renderIeOpBreakdown(){
   root.innerHTML = `
     <div class="panel">
       <h2>Operational Breakdown</h2>
-      <p class="sub">Pilih Line, lalu pilih Style-nya — breakdown proses style itu akan muncul dengan kolom Manpower masih kosong. Cocokkan tiap proses dengan orang dari Database Manpower (isi/lengkapi dulu di tab "Variabel Line" kalau belum ada).</p>
+      <p class="sub">Pilih Line yang mau dipasangkan manpower, lalu pilih Style-nya (daftar Style di sini global — breakdown proses cukup diisi sekali per Style di tab "Variabel Line", berlaku untuk line manapun). Cocokkan tiap proses dengan orang dari Database Manpower.</p>
       <div class="field-row">
         <div class="field"><label>Line</label>
           <select id="obLine">${LINES.map(l=>`<option value="${l}">${l}</option>`).join('')}</select>
         </div>
         <div class="field"><label>Style</label>
-          <select id="obStyle"><option value="">Pilih Line dulu...</option></select>
+          <select id="obStyle"><option value="">Memuat...</option></select>
         </div>
       </div>
       <datalist id="obDatalist"></datalist>
@@ -2351,17 +2346,21 @@ async function renderIeOpBreakdown(){
     }catch(err){ /* datalist kosong kalau gagal, tidak fatal -- tombol Pasang akan tetap menolak input yang tidak cocok */ }
   }
 
-  async function loadStylesForLine(line){
+  async function loadAllStyles(){
     const sel = document.getElementById('obStyle');
+    const prevVal = sel.value;
     sel.innerHTML = '<option value="">Memuat...</option>';
     try{
-      const list = await apiGet('/line-processes?line='+encodeURIComponent(line));
+      // Breakdown proses sekarang global per Style (tidak per Line), jadi
+      // daftar Style di sini juga global -- berlaku untuk Line manapun.
+      const list = await apiGet('/line-processes');
       const styles = Array.from(new Set(list.map(p=>p.style).filter(Boolean))).sort((a,b)=>a.localeCompare(b));
       if(!styles.length){
-        sel.innerHTML = '<option value="">Belum ada breakdown untuk line ini</option>';
+        sel.innerHTML = '<option value="">Belum ada breakdown style — isi dulu di tab "Variabel Line"</option>';
         return;
       }
       sel.innerHTML = '<option value="">Pilih Style...</option>' + styles.map(s=>`<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+      if(prevVal && styles.includes(prevVal)) sel.value = prevVal;
     }catch(err){
       sel.innerHTML = '<option value="">Gagal memuat style</option>';
     }
@@ -2377,10 +2376,10 @@ async function renderIeOpBreakdown(){
     }
     wrap.innerHTML = '<p class="sub" style="text-align:center;padding:20px 0;">Memuat breakdown...</p>';
     try{
-      const list = await apiGet('/line-processes?line='+encodeURIComponent(line)+'&style='+encodeURIComponent(style));
+      const list = await apiGet('/line-processes?style='+encodeURIComponent(style));
       let assignments = await apiGet('/line-processes?resource=assignments&line='+encodeURIComponent(line)+'&style='+encodeURIComponent(style));
       if(!list.length){
-        wrap.innerHTML = '<p class="sub" style="text-align:center;padding:20px 0;">Belum ada breakdown untuk Line+Style ini.</p>';
+        wrap.innerHTML = '<p class="sub" style="text-align:center;padding:20px 0;">Belum ada breakdown untuk Style ini.</p>';
         return;
       }
       // Satu proses bisa dipasangkan ke lebih dari 1 operator -- kelompokkan per nama_proses.
@@ -2500,14 +2499,11 @@ async function renderIeOpBreakdown(){
     }
   }
 
-  document.getElementById('obLine').addEventListener('change', async (e)=>{
-    await loadStylesForLine(e.target.value);
-    loadBreakdown();
-  });
+  document.getElementById('obLine').addEventListener('change', loadBreakdown);
   document.getElementById('obStyle').addEventListener('change', loadBreakdown);
 
   await loadManpowerForDatalist();
-  await loadStylesForLine(document.getElementById('obLine').value);
+  await loadAllStyles();
   loadBreakdown();
 }
 
@@ -2546,9 +2542,11 @@ async function renderIeSkillMatrix(){
   function gradeLabel(g){ return g==='a' ? 'Grade A' : g==='b' ? 'Grade B' : 'Grade C'; }
 
   function computeOperators(processRows, assignments){
+    // Breakdown proses (SMV/mesin) sekarang global per Style -- key join
+    // TIDAK lagi menyertakan line, cukup style+nama_proses.
     const smvMap = {}, mesinMap = {};
     processRows.forEach(p=>{
-      const key = p.line+'||'+p.style+'||'+(p.nama_proses||'').trim();
+      const key = p.style+'||'+(p.nama_proses||'').trim();
       smvMap[key] = Number(p.smv)||0;
       mesinMap[key] = (p.nama_mesin||'').trim();
     });
@@ -2556,7 +2554,7 @@ async function renderIeSkillMatrix(){
     assignments.forEach(a=>{
       const name = (a.nama||'').trim();
       if(!name) return; // assignment tanpa nama dilewati
-      const key = a.line+'||'+a.style+'||'+(a.nama_proses||'').trim();
+      const key = a.style+'||'+(a.nama_proses||'').trim();
       const smv = smvMap[key] || 0;
       if(!map[name]) map[name] = { name, total:0, count:0, lines:new Set(), mesin:new Set() };
       map[name].total += smv;
@@ -2618,10 +2616,11 @@ async function renderIeSkillMatrix(){
     document.getElementById('smStats').innerHTML = '';
     const line = document.getElementById('smLine').value;
     try{
-      const qs = line ? ('?line='+encodeURIComponent(line)) : '';
+      // Breakdown proses global per Style (tidak per Line) -- selalu fetch semua,
+      // filter Line di sini hanya berlaku ke assignment (siapa kerja di line mana).
       const assignQs = line ? ('?resource=assignments&line='+encodeURIComponent(line)) : '?resource=assignments';
       const [processRows, assignments] = await Promise.all([
-        apiGet('/line-processes'+qs),
+        apiGet('/line-processes'),
         apiGet('/line-processes'+assignQs),
       ]);
       smAllProcessRows = processRows;
